@@ -1,16 +1,16 @@
-import dotenv from "dotenv";
-import app from "./app.js";
-import connectDB from "./config/db.js";
+import mongoose from "mongoose";
 
-// Load env variables
-dotenv.config();
+const connectDB = async () => {
+  try {
+    console.log("Connecting to DB...");
 
-const PORT = process.env.PORT || 3000;
+    await mongoose.connect(process.env.MONGO_URI);
 
-// Connect to DB
-connectDB();
+    console.log("Database connected");
+  } catch (error) {
+    console.error("DB connection failed:", error.message);
+    process.exit(1);
+  }
+};
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+export default connectDB;
