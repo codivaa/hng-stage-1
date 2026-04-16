@@ -2,67 +2,45 @@
 
 ## 📌 Overview
 
-This project is a RESTful API built for the HNG Backend Stage 1 task.
+This is a RESTful API built for the HNG Stage 1 Backend Task.
 
-It accepts a name, enriches it using three external APIs (Genderize, Agify, and Nationalize), processes the data, stores it in MongoDB, and exposes endpoints to retrieve, filter, and delete profiles.
+The API:
 
-The system is designed to demonstrate:
-
-* Backend system design
-* API integration
-* Database usage
-* Clean API response structure
-
----
-
-## ⚙️ Features
-
-* 🔗 Multi-API integration (Genderize, Agify, Nationalize)
-* 💾 MongoDB data persistence
-* ♻️ Idempotency (no duplicate profiles)
-* 🧠 Age classification logic
-* 🌍 Nationality selection (highest probability)
-* 🔍 Filtering support via query params
-* ⚠️ Structured error handling
-* 🆔 UUID v7 unique IDs
-* 🕒 ISO 8601 timestamps (UTC)
-* 🌐 CORS enabled
+* Accepts a name
+* Calls 3 external APIs (Genderize, Agify, Nationalize)
+* Applies classification logic
+* Stores results in MongoDB
+* Exposes endpoints to manage profiles
 
 ---
 
-## 🌐 Base URL
+## 🌐 Live API
+
+**Base URL**
 
 ```
-https://your-api-url.com
+https://hng-stage-1-production-93d7.up.railway.app
+```
+
+**Test Endpoint**
+
+```
+https://hng-stage-1-production-93d7.up.railway.app/api/profiles
 ```
 
 ---
 
-## 📡 External APIs
+## 📡 External APIs Used
 
-### Genderize
-
-```
-https://api.genderize.io?name={name}
-```
-
-### Agify
-
-```
-https://api.agify.io?name={name}
-```
-
-### Nationalize
-
-```
-https://api.nationalize.io?name={name}
-```
+* Genderize → https://api.genderize.io?name={name}
+* Agify → https://api.agify.io?name={name}
+* Nationalize → https://api.nationalize.io?name={name}
 
 ---
 
-## 🧠 Business Logic
+## 🧠 Classification Logic
 
-### Age Classification
+### Age Groups
 
 | Age   | Group    |
 | ----- | -------- |
@@ -73,13 +51,15 @@ https://api.nationalize.io?name={name}
 
 ### Nationality
 
-* Select country with highest probability from API response
+* Select country with highest probability
 
 ---
 
 ## 📦 API Endpoints
 
-### 🔹 Create Profile
+---
+
+### 1️⃣ Create Profile
 
 **POST** `/api/profiles`
 
@@ -104,7 +84,7 @@ Success (201):
     "sample_size": 1234,
     "age": 46,
     "age_group": "adult",
-    "country_id": "DRC",
+    "country_id": "NG",
     "country_probability": 0.85,
     "created_at": "2026-04-01T12:00:00Z"
   }
@@ -117,32 +97,23 @@ Duplicate (200):
 {
   "status": "success",
   "message": "Profile already exists",
-  "data": { ... }
+  "data": { }
 }
 ```
 
 ---
 
-### 🔹 Get Single Profile
+### 2️⃣ Get Single Profile
 
 **GET** `/api/profiles/{id}`
 
-Response (200):
-
-```json
-{
-  "status": "success",
-  "data": { ...full profile }
-}
-```
-
 ---
 
-### 🔹 Get All Profiles
+### 3️⃣ Get All Profiles
 
 **GET** `/api/profiles`
 
-Query params:
+Query parameters (case-insensitive):
 
 * gender
 * country_id
@@ -154,7 +125,7 @@ Example:
 /api/profiles?gender=male&country_id=NG
 ```
 
-Response (200):
+Response:
 
 ```json
 {
@@ -167,7 +138,7 @@ Response (200):
       "gender": "female",
       "age": 46,
       "age_group": "adult",
-      "country_id": "DRC"
+      "country_id": "NG"
     }
   ]
 }
@@ -175,7 +146,7 @@ Response (200):
 
 ---
 
-### 🔹 Delete Profile
+### 4️⃣ Delete Profile
 
 **DELETE** `/api/profiles/{id}`
 
@@ -189,7 +160,7 @@ Response:
 
 ## ❗ Error Handling
 
-All errors follow this format:
+All errors follow:
 
 ```json
 {
@@ -205,28 +176,46 @@ All errors follow this format:
 | 400  | Missing or empty name |
 | 422  | Invalid type          |
 | 404  | Profile not found     |
-| 502  | External API error    |
+| 502  | External API failure  |
 | 500  | Internal server error |
+
+---
+
+## ⚠️ Edge Case Handling
+
+* Genderize returns null → 502
+* Agify returns null → 502
+* Nationalize returns empty → 502
+
+Format:
+
+```json
+{
+  "status": "error",
+  "message": "ExternalAPI returned an invalid response"
+}
+```
 
 ---
 
 ## 🗂️ Project Structure
 
 ```
-config/
-  db.js
-controllers/
-  profileController.js
-models/
-  Profile.js
-routes/
-  profileRoutes.js
-utils/
-  classifyAge.js
-errors/
-  errorHandler.js
-app.js
-server.js
+src/
+  app.js
+  server.js
+  config/
+    db.js
+  controllers/
+    profileController.js
+  models/
+    Profile.js
+  routes/
+    profileRoutes.js
+  utils/
+    classifyAge.js
+  errors/
+    errorHandler.js
 ```
 
 ---
@@ -244,8 +233,8 @@ server.js
 ## ▶️ Running Locally
 
 ```bash
-git clone https://github.com/codivaa/hng_stage1
-cd hng_stage1
+git clone https://github.com/codivaa/hng-stage-1
+cd hng-stage-1
 npm install
 npm run dev
 ```
@@ -254,7 +243,7 @@ npm run dev
 
 ## 🔐 Environment Variables
 
-Create a `.env` file and add:
+Create `.env`:
 
 ```
 MONGO_URI=your_mongodb_connection_string
@@ -265,17 +254,22 @@ PORT=3000
 
 ## 🌍 Deployment
 
-Deployed on Railway (or any supported platform).
+Deployed on Railway:
+
+```
+https://hng-stage-1-production-93d7.up.railway.app
+```
 
 ---
 
 ## 🧪 Testing
 
-Use tools like:
+Use:
 
-* Thunder Client
 * Postman
+* Thunder Client
 * curl
+* Browser (GET endpoints)
 
 ---
 

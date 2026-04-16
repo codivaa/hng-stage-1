@@ -5,52 +5,66 @@ import { classifyAge } from "../utils/classifyAge.js";
 import { errorResponse } from "../errors/errorHandler.js";
 
 // helper to remove MongoDB fields
-const formatProfile = (p) => ({
-  id: p.id,
-  name: p.name,
-  gender: p.gender,
-  gender_probability: p.gender_probability,
-  sample_size: p.sample_size,
-  age: p.age,
-  age_group: p.age_group,
-  country_id: p.country_id,
-  country_probability: p.country_probability,
-  created_at: p.created_at
+const formatProfile = (profile) => ({
+  id: profile.id,
+  name: profile.name,
+  gender: profile.gender,
+  gender_probability: profile.gender_probability,
+  sample_size: profile.sample_size,
+  age: profile.age,
+  age_group: profile.age_group,
+  country_id: profile.country_id,
+  country_probability: profile.country_probability,
+  created_at: profile.created_at
 });
 
 // CREATE PROFILE
 export const createProfile = async (req, res) => {
-  try {
-    const { name } = req.body;
+ try {
+  const { name } = req.body;
 
-    if (!name) return errorResponse(res, 400, "Name is required");
-    if (typeof name !== "string") return errorResponse(res, 422, "Invalid name type");
+  // 400 → Missing or empty
+  if (!name || (typeof name === "string" && !name.trim())) {
+    return errorResponse(res, 400, "Missing or empty name");
+  }
 
-    const normalizedName = name.trim().toLowerCase();
-    if (!normalizedName) return errorResponse(res, 400, "Name cannot be empty");
+  // 422 → Invalid type
+  if (typeof name !== "string") {
+    return errorResponse(res, 422, "Invalid type");
+  }
 
-    // IDEMPOTENCY
-    const existing = await Profile.findOne({ name: normalizedName });
+  const normalizedName = name.trim().toLowerCase();
 
-    if (existing) {
-      return res.status(200).json({
-        status: "success",
-        message: "Profile already exists",
-        data: formatProfile(existing)
-      });
-    }
+  // IDEMPOTENCY
+  const existingProfile = await Profile.findOne({ name: normalizedName });
 
+  if (existingProfile) {
+    return res.status(200).json({
+      status: "success",
+      message: "Profile already exists",
+      data: formatProfile(existingProfile)
+    });
+  }
+  
     // CALL APIs
-    let genderRes, ageRes, countryRes;
+   let genderRes, ageRes, countryRes;
 
     try {
-      [genderRes, ageRes, countryRes] = await Promise.all([
-        axios.get(`https://api.genderize.io?name=${normalizedName}`),
-        axios.get(`https://api.agify.io?name=${normalizedName}`),
-        axios.get(`https://api.nationalize.io?name=${normalizedName}`)
-      ]);
-    } catch (err) {
+      genderRes = await axios.get(`https://api.genderize.io?name=${normalizedName}`);
+    } catch {
       return errorResponse(res, 502, "Genderize returned an invalid response");
+    }
+
+    try {
+      ageRes = await axios.get(`https://api.agify.io?name=${normalizedName}`);
+    } catch {
+      return errorResponse(res, 502, "Agify returned an invalid response");
+    }
+
+    try {
+      countryRes = await axios.get(`https://api.nationalize.io?name=${normalizedName}`);
+    } catch {
+      return errorResponse(res, 502, "Nationalize returned an invalid response");
     }
 
     const genderData = genderRes.data;
@@ -61,8 +75,8 @@ export const createProfile = async (req, res) => {
       return errorResponse(res, 502, "Genderize returned an invalid response");
     }
 
-    if (!ageData.age) {
-      return errorResponse(res, 502, "Agify returned an invalid response");
+    if (ageData.age === null) {
+    return errorResponse(res, 502, "Agify returned an invalid response");
     }
 
     if (!countryData.country || countryData.country.length === 0) {
@@ -131,13 +145,13 @@ export const getProfiles = async (req, res) => {
     return res.json({
       status: "success",
       count: profiles.length,
-      data: profiles.map(p => ({
-      id: p.id,
-      name: p.name,
-      gender: p.gender,
-      age: p.age,
-      age_group: p.age_group,
-      country_id: p.country_id
+      data: profiles.map(profile => ({
+      id: profile.id,
+      name: profile.name,
+      gender: profile.gender,
+      age: profile.age,
+      age_group: profile.age_group,
+      country_id: profile.country_id
     }))
     });
 
