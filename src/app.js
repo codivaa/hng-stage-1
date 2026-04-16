@@ -10,4 +10,8 @@ app.use(cors());
 
 app.use("/api/profiles", profileRoutes);
 
+app.get("/", (req, res) => {
+  res.send("HNG Stage 1 API is running 🚀");
+});
+
 export default app;
