@@ -14,40 +14,37 @@ const formatProfile = (profile) => ({
   age: profile.age,
   age_group: profile.age_group,
   country_id: profile.country_id,
+  country_name: profile.country_name,
   country_probability: profile.country_probability,
   created_at: profile.created_at
 });
 
 // CREATE PROFILE
 export const createProfile = async (req, res) => {
- try {
-  const { name } = req.body;
+  try {
+    const { name } = req.body;
 
-  // 400 → Missing or empty
-  if (!name || (typeof name === "string" && !name.trim())) {
-    return errorResponse(res, 400, "Missing or empty name");
-  }
+    if (!name || (typeof name === "string" && !name.trim())) {
+      return errorResponse(res, 400, "Missing or empty name");
+    }
 
-  // 422 → Invalid type
-  if (typeof name !== "string") {
-    return errorResponse(res, 422, "Invalid type");
-  }
+    if (typeof name !== "string") {
+      return errorResponse(res, 422, "Invalid type");
+    }
 
-  const normalizedName = name.trim().toLowerCase();
+    const normalizedName = name.trim().toLowerCase();
 
-  // IDEMPOTENCY
-  const existingProfile = await Profile.findOne({ name: normalizedName });
+    const existingProfile = await Profile.findOne({ name: normalizedName });
 
-  if (existingProfile) {
-    return res.status(200).json({
-      status: "success",
-      message: "Profile already exists",
-      data: formatProfile(existingProfile)
-    });
-  }
-  
-    // CALL APIs
-   let genderRes, ageRes, countryRes;
+    if (existingProfile) {
+      return res.status(200).json({
+        status: "success",
+        message: "Profile already exists",
+        data: formatProfile(existingProfile)
+      });
+    }
+
+    let genderRes, ageRes, countryRes;
 
     try {
       genderRes = await axios.get(`https://api.genderize.io?name=${normalizedName}`);
@@ -76,7 +73,7 @@ export const createProfile = async (req, res) => {
     }
 
     if (ageData.age === null) {
-    return errorResponse(res, 502, "Agify returned an invalid response");
+      return errorResponse(res, 502, "Agify returned an invalid response");
     }
 
     if (!countryData.country || countryData.country.length === 0) {
@@ -96,6 +93,7 @@ export const createProfile = async (req, res) => {
       age: ageData.age,
       age_group: classifyAge(ageData.age),
       country_id: topCountry.country_id,
+      country_name: topCountry.country_id,      
       country_probability: topCountry.probability,
       created_at: new Date().toISOString()
     });
@@ -104,6 +102,73 @@ export const createProfile = async (req, res) => {
       status: "success",
       data: formatProfile(profile)
     });
+
+  } catch (err) {
+    return errorResponse(res, 500, "Internal server error");
+  }
+};
+
+
+
+export const getProfiles = async (req, res) => {
+  try {
+    const {
+      gender,
+      age_group,
+      country_id,
+      min_age,
+      max_age,
+      min_gender_probability,
+      min_country_probability,
+      sort_by = "created_at",
+      order = "desc",
+      page = 1,
+      limit = 10
+    } = req.query;
+
+    const filter = {};
+
+    if (gender) filter.gender = gender.toLowerCase();
+    if (age_group) filter.age_group = age_group.toLowerCase();
+    if (country_id) filter.country_id = country_id.toUpperCase();
+
+    if (min_age || max_age) {
+      filter.age = {};
+      if (min_age) filter.age.$gte = Number(min_age);
+      if (max_age) filter.age.$lte = Number(max_age);
+    }
+
+    if (min_gender_probability) {
+      filter.gender_probability = { $gte: Number(min_gender_probability) };
+    }
+
+    if (min_country_probability) {
+      filter.country_probability = { $gte: Number(min_country_probability) };
+    }
+
+    const sort = {
+      [sort_by]: order === "asc" ? 1 : -1
+    };
+
+    const safePage = Math.max(1, Number(page));
+    const safeLimit = Math.min(50, Number(limit)); 
+    const skip = (safePage - 1) * safeLimit;
+
+    const total = await Profile.countDocuments(filter);
+
+    const data = await Profile.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(safeLimit);
+
+    return res.json({
+      status: "success",
+      page: safePage,
+      limit: safeLimit,
+      total,
+      data: data.map(formatProfile) 
+
+     });
 
   } catch (err) {
     return errorResponse(res, 500, "Internal server error");
@@ -121,6 +186,7 @@ export const getProfile = async (req, res) => {
     return res.json({
       status: "success",
       data: formatProfile(profile)
+      
     });
 
   } catch (err) {
@@ -129,30 +195,85 @@ export const getProfile = async (req, res) => {
 };
 
 
-// GET ALL
-export const getProfiles = async (req, res) => {
+// SEARCH
+export const searchProfiles = async (req, res) => {
   try {
-    const { gender, country_id, age_group } = req.query;
+    const { q, page = 1, limit = 10 } = req.query;
+
+    if (!q || typeof q !== "string" || !q.trim()) {
+      return errorResponse(res, 400, "Missing or empty parameter");
+    }
+
+    const query = q.toLowerCase();
 
     const filter = {};
 
-    if (gender) filter.gender = gender.toLowerCase();
-    if (country_id) filter.country_id = country_id.toUpperCase();
-    if (age_group) filter.age_group = age_group.toLowerCase();
+    // GENDER
+    if (query.includes("female")) {
+      filter.gender = "female";
+    } else if (query.includes("male")) {
+      filter.gender = "male";
+    }
 
-    const profiles = await Profile.find(filter);
+    // AGE GROUP
+    if (query.includes("child")) filter.age_group = "child";
+    if (query.includes("teen")) filter.age_group = "teenager";
+    if (query.includes("adult")) filter.age_group = "adult";
+    if (query.includes("senior")) filter.age_group = "senior";
+
+    // "young" → special rule
+    if (query.includes("young")) {
+      filter.age = { $gte: 16, $lte: 24 };
+    }
+
+    // ABOVE / BELOW AGE
+    const ageMatch = query.match(/above (\d+)/);
+    if (ageMatch) {
+      filter.age = { ...(filter.age || {}), $gte: Number(ageMatch[1]) };
+    }
+
+    const belowMatch = query.match(/below (\d+)/);
+    if (belowMatch) {
+      filter.age = { ...(filter.age || {}), $lte: Number(belowMatch[1]) };
+    }
+
+    // COUNTRY (basic mapping)
+    const countryMap = {
+      nigeria: "NG",
+      kenya: "KE",
+      angola: "AO",
+      ghana: "GH",
+      uganda: "UG"
+    };
+
+    for (const country in countryMap) {
+      if (query.includes(country)) {
+        filter.country_id = countryMap[country];
+      }
+    }
+
+    // If nothing detected → error
+    if (Object.keys(filter).length === 0) {
+      return errorResponse(res, 400, "Unable to interpret query");
+    }
+
+    // PAGINATION
+    const safePage = Math.max(1, Number(page));
+    const safeLimit = Math.min(50, Number(limit));
+    const skip = (safePage - 1) * safeLimit;
+
+    const total = await Profile.countDocuments(filter);
+
+    const data = await Profile.find(filter)
+      .skip(skip)
+      .limit(safeLimit);
 
     return res.json({
       status: "success",
-      count: profiles.length,
-      data: profiles.map(profile => ({
-      id: profile.id,
-      name: profile.name,
-      gender: profile.gender,
-      age: profile.age,
-      age_group: profile.age_group,
-      country_id: profile.country_id
-    }))
+      page: safePage,
+      limit: safeLimit,
+      total,
+      data: data.map(formatProfile)
     });
 
   } catch (err) {

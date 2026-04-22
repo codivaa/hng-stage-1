@@ -1,16 +1,21 @@
-# 🚀 HNG Stage 1 Backend – Profile Intelligence API
+# 🚀 HNG Stage 2 Backend – Intelligence Query Engine API
+
+---
 
 ## 📌 Overview
 
-This is a RESTful API built for the HNG Stage 1 Backend Task.
+This project is an upgraded version of the **HNG Stage 1 Profile Intelligence API**, extended to meet the requirements of **Stage 2**.
 
-The API:
+It is built for **Insighta Labs**, a demographic intelligence company that needs fast, flexible data querying.
 
-* Accepts a name
-* Calls 3 external APIs (Genderize, Agify, Nationalize)
-* Applies classification logic
-* Stores results in MongoDB
-* Exposes endpoints to manage profiles
+### 🔥 What this API does
+
+* Creates demographic profiles using external APIs
+* Stores structured data in MongoDB
+* Supports **advanced filtering, sorting, and pagination**
+* Supports **natural language queries (rule-based parsing)**
+* Seeds database with **2026 profiles**
+* Ensures **efficient querying (no unnecessary full-table scans)**
 
 ---
 
@@ -22,19 +27,13 @@ The API:
 https://hng-stage-1-production-93d7.up.railway.app
 ```
 
-**Test Endpoint**
-
-```
-https://hng-stage-1-production-93d7.up.railway.app/api/profiles
-```
-
 ---
 
 ## 📡 External APIs Used
 
-* Genderize → https://api.genderize.io?name={name}
-* Agify → https://api.agify.io?name={name}
-* Nationalize → https://api.nationalize.io?name={name}
+* Genderize → https://api.genderize.io
+* Agify → https://api.agify.io
+* Nationalize → https://api.nationalize.io
 
 ---
 
@@ -42,16 +41,51 @@ https://hng-stage-1-production-93d7.up.railway.app/api/profiles
 
 ### Age Groups
 
-| Age   | Group    |
-| ----- | -------- |
-| 0–12  | child    |
-| 13–19 | teenager |
-| 20–59 | adult    |
-| 60+   | senior   |
+| Age Range | Group    |
+| --------- | -------- |
+| 0–12      | child    |
+| 13–19     | teenager |
+| 20–59     | adult    |
+| 60+       | senior   |
 
-### Nationality
+### Country Selection
 
-* Select country with highest probability
+* Country with **highest probability** is selected
+
+---
+
+## 🗄️ Database Structure
+
+Each profile follows this schema:
+
+* id (UUID v7)
+* name (unique)
+* gender
+* gender_probability
+* age
+* age_group
+* country_id
+* country_name
+* country_probability
+* created_at (ISO 8601 UTC)
+
+---
+
+## 🌱 Data Seeding
+
+The database is preloaded with **2026 profiles** from a JSON dataset.
+
+### ✔️ Key Features
+
+* Prevents duplicate entries using unique name constraint
+* Safe to run multiple times (**idempotent**)
+* Ensures required dataset is available before API usage
+
+### ▶️ How to Run Seed
+
+```bash
+npm run seed
+```
 
 ---
 
@@ -63,41 +97,9 @@ https://hng-stage-1-production-93d7.up.railway.app/api/profiles
 
 **POST** `/api/profiles`
 
-Request:
-
 ```json
 {
   "name": "ella"
-}
-```
-
-Success (201):
-
-```json
-{
-  "status": "success",
-  "data": {
-    "id": "uuid",
-    "name": "ella",
-    "gender": "female",
-    "gender_probability": 0.99,
-    "sample_size": 1234,
-    "age": 46,
-    "age_group": "adult",
-    "country_id": "NG",
-    "country_probability": 0.85,
-    "created_at": "2026-04-01T12:00:00Z"
-  }
-}
-```
-
-Duplicate (200):
-
-```json
-{
-  "status": "success",
-  "message": "Profile already exists",
-  "data": { }
 }
 ```
 
@@ -109,92 +111,108 @@ Duplicate (200):
 
 ---
 
-### 3️⃣ Get All Profiles
+### 3️⃣ Get All Profiles (CORE ENGINE)
 
 **GET** `/api/profiles`
 
-Query parameters (case-insensitive):
+#### 🔍 Filtering (combinable)
 
 * gender
-* country_id
 * age_group
+* country_id
+* min_age
+* max_age
+* min_gender_probability
+* min_country_probability
 
-Example:
+#### 🔃 Sorting
 
-```
-/api/profiles?gender=male&country_id=NG
-```
+* `sort_by` → age | created_at | gender_probability
+* `order` → asc | desc
 
-Response:
+#### 📄 Pagination
 
-```json
-{
-  "status": "success",
-  "count": 2,
-  "data": [
-    {
-      "id": "uuid",
-      "name": "ella",
-      "gender": "female",
-      "age": 46,
-      "age_group": "adult",
-      "country_id": "NG"
-    }
-  ]
-}
-```
+* page (default: 1)
+* limit (default: 10, max: 50)
 
 ---
 
-### 4️⃣ Delete Profile
+### 4️⃣ Natural Language Search (CORE FEATURE)
 
-**DELETE** `/api/profiles/{id}`
+**GET** `/api/profiles/search?q=<query>`
 
-Response:
+---
 
-```
-204 No Content
-```
+## 🧠 Natural Language Parsing Approach
+
+This system uses a **rule-based parser** (NO AI / NO LLMs).
+
+### 🔍 Supported Keywords
+
+#### 👤 Gender
+
+* male → gender = male
+* female → gender = female
+
+#### 🎂 Age Rules
+
+* young → age 16–24
+* above X → min_age
+* below X → max_age
+
+#### 🧑‍🤝‍🧑 Age Groups
+
+* child → child
+* teen → teenager
+* adult → adult
+* senior → senior
+
+#### 🌍 Countries
+
+* nigeria → NG
+* kenya → KE
+* angola → AO
+* ghana → GH
+* uganda → UG
+
+---
+
+## 🔄 Example Queries
+
+| Query                  | Output                                        |
+| ---------------------- | --------------------------------------------- |
+| young males            | gender=male + age 16–24                       |
+| females above 30       | gender=female + min_age=30                    |
+| adult males from kenya | gender=male + age_group=adult + country_id=KE |
 
 ---
 
 ## ❗ Error Handling
 
-All errors follow:
-
 ```json
 {
   "status": "error",
-  "message": "Error message"
+  "message": "<error message>"
 }
 ```
-
-### Status Codes
-
-| Code | Meaning               |
-| ---- | --------------------- |
-| 400  | Missing or empty name |
-| 422  | Invalid type          |
-| 404  | Profile not found     |
-| 502  | External API failure  |
-| 500  | Internal server error |
 
 ---
 
-## ⚠️ Edge Case Handling
+## ⚠️ Limitations
 
-* Genderize returns null → 502
-* Agify returns null → 502
-* Nationalize returns empty → 502
+* Only predefined keywords supported
+* Limited country mapping
+* No typo correction
+* Cannot parse complex sentences
+* Rule-based only
 
-Format:
+---
 
-```json
-{
-  "status": "error",
-  "message": "ExternalAPI returned an invalid response"
-}
-```
+## ⚡ Performance
+
+* No full-table scans
+* Efficient MongoDB queries
+* Pagination for large data
 
 ---
 
@@ -216,6 +234,9 @@ src/
     classifyAge.js
   errors/
     errorHandler.js
+  seed/
+    seed.js 
+    seedProfiles.js 
 ```
 
 ---
@@ -233,8 +254,6 @@ src/
 ## ▶️ Running Locally
 
 ```bash
-git clone https://github.com/codivaa/hng-stage-1
-cd hng-stage-1
 npm install
 npm run dev
 ```
@@ -242,8 +261,6 @@ npm run dev
 ---
 
 ## 🔐 Environment Variables
-
-Create `.env`:
 
 ```
 MONGO_URI=your_mongodb_connection_string
@@ -254,22 +271,11 @@ PORT=3000
 
 ## 🌍 Deployment
 
-Deployed on Railway:
+Hosted on Railway:
 
 ```
 https://hng-stage-1-production-93d7.up.railway.app
 ```
-
----
-
-## 🧪 Testing
-
-Use:
-
-* Postman
-* Thunder Client
-* curl
-* Browser (GET endpoints)
 
 ---
 

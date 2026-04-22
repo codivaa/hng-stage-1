@@ -3,6 +3,7 @@ import {
   createProfile,
   getProfile,
   getProfiles,
+  searchProfiles,
   deleteProfile
 } from "../controllers/profileController.js"
 
@@ -10,6 +11,7 @@ const router = express.Router();
 
 router.post("/", createProfile);
 router.get("/", getProfiles);
+router.get("/search", searchProfiles);
 router.get("/:id", getProfile);
 router.delete("/:id", deleteProfile);
 
