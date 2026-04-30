@@ -1,4 +1,3 @@
-import session from "express-session";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -17,17 +16,6 @@ app.use(cookieParser());
 app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:5173",
   credentials: true
-}));
-
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: true,
-  cookie: {
-    secure: process.env.NODE_ENV !== "development",
-    httpOnly: true,
-    sameSite: "lax"
-  }
 }));
 
 app.use(logger);
