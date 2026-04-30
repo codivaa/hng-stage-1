@@ -1,0 +1,4 @@
+[build]
+  base = "insighta-web"
+  command = "npm ci && npm run build"
+  publish = "dist"
