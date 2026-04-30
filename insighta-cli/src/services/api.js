@@ -1,9 +1,10 @@
 import axios from "axios";
 import { loadCredentials } from "./storage.js";
 import { refreshAccessToken } from "./auth.js";
+import { BASE_URL } from "../config/index.js";
 
 const api = axios.create({
-  baseURL: "http://localhost:3000/api/v1"
+  baseURL: BASE_URL
 });
 
 // 🔐 Request interceptor

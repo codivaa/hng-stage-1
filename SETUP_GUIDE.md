@@ -85,7 +85,7 @@ JWT_REFRESH_SECRET=your_jwt_refresh_secret_here
 # GitHub OAuth
 GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_CLIENT_SECRET=your_github_client_secret
-GITHUB_CALLBACK_URL=http://localhost:3000/api/v1/auth/github/callback
+GITHUB_CALLBACK_URL=http://localhost:3000/api/auth/github/callback
 
 # Admin
 ADMIN_GITHUB_ID=your_github_id_for_admin_access
@@ -132,7 +132,7 @@ cp .env.example .env
 
 4. Configure `.env`:
 ```env
-API_BASE_URL=http://localhost:3000/api/v1
+API_BASE_URL=http://localhost:3000/api
 GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_AUTHORIZE_URL=https://github.com/login/oauth/authorize
 GITHUB_TOKEN_URL=https://github.com/login/oauth/access_token
@@ -208,7 +208,7 @@ This creates an optimized build in the `dist/` directory.
 3. Fill in the form:
    - **Application name**: Insighta
    - **Homepage URL**: `http://localhost:5173`
-   - **Authorization callback URL**: `http://localhost:3000/api/v1/auth/github/callback`
+   - **Authorization callback URL**: `http://localhost:3000/api/auth/github/callback`
 4. Create the app
 
 ### Step 2: Get Credentials
@@ -271,12 +271,12 @@ node bin/index.js
 
 #### GitHub OAuth Redirect
 ```
-GET /api/v1/auth/github?state=<state>&code_challenge=<challenge>
+GET /api/auth/github?state=<state>&code_challenge=<challenge>
 ```
 
 #### Exchange Code for Tokens
 ```
-POST /api/v1/auth/exchange
+POST /api/auth/exchange
 Content-Type: application/json
 
 {
@@ -299,7 +299,7 @@ Response:
 
 #### Refresh Token
 ```
-POST /api/v1/auth/refresh
+POST /api/auth/refresh
 
 Response:
 {
@@ -310,7 +310,7 @@ Response:
 
 #### Get Current User
 ```
-GET /api/v1/auth/me
+GET /api/auth/me
 
 Response:
 {
@@ -321,7 +321,7 @@ Response:
 
 #### Logout
 ```
-POST /api/v1/auth/logout
+POST /api/auth/logout
 
 Response:
 {
@@ -334,7 +334,7 @@ Response:
 
 #### Get All Profiles
 ```
-GET /api/v1/profiles?gender=male&age_group=adult&country_id=NG&page=1&limit=10
+GET /api/profiles?gender=male&age_group=adult&country_id=NG&page=1&limit=10
 
 Query Parameters:
 - gender: male|female
@@ -355,8 +355,8 @@ Response:
   "total": 100,
   "total_pages": 10,
   "links": {
-    "self": "/api/v1/profiles?page=1&limit=10",
-    "next": "/api/v1/profiles?page=2&limit=10",
+    "self": "/api/profiles?page=1&limit=10",
+    "next": "/api/profiles?page=2&limit=10",
     "prev": null
   },
   "data": [ ... ]
@@ -365,7 +365,7 @@ Response:
 
 #### Get Profile by ID
 ```
-GET /api/v1/profiles/:id
+GET /api/profiles/:id
 
 Response:
 {
@@ -376,7 +376,7 @@ Response:
 
 #### Search Profiles
 ```
-GET /api/v1/profiles/search?q=male&page=1&limit=10
+GET /api/profiles/search?q=male&page=1&limit=10
 
 Query Parameters:
 - q: search query (e.g., "male", "young", "Nigeria")
@@ -395,7 +395,7 @@ Response:
 
 #### Create Profile (Admin Only)
 ```
-POST /api/v1/profiles
+POST /api/profiles
 Content-Type: application/json
 
 {
@@ -411,7 +411,7 @@ Content-Type: application/json
 
 #### Delete Profile (Admin Only)
 ```
-DELETE /api/v1/profiles/:id
+DELETE /api/profiles/:id
 ```
 
 ---
@@ -473,7 +473,7 @@ DELETE /api/v1/profiles/:id
 **Solution**:
 - Seed the database: `node src/seed/seedProfiles.js`
 - Check MongoDB connection
-- Verify API is returning data: `curl http://localhost:3000/api/v1/profiles`
+- Verify API is returning data: `curl http://localhost:3000/api/profiles`
 
 ---
 

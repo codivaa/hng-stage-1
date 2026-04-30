@@ -111,13 +111,13 @@ src/
 
 The portal uses the same backend APIs as the CLI:
 
-- `GET /api/v1/profiles` - Get profiles with filters
-- `GET /api/v1/profiles/:id` - Get profile details
-- `GET /api/v1/profiles/search` - Search profiles
-- `POST /api/v1/auth/exchange` - Exchange OAuth code for tokens
-- `POST /api/v1/auth/refresh` - Refresh access token
-- `POST /api/v1/auth/logout` - Logout
-- `GET /api/v1/auth/me` - Get current user
+- `GET /api/profiles` - Get profiles with filters
+- `GET /api/profiles/:id` - Get profile details
+- `GET /api/profiles/search` - Search profiles
+- `POST /api/auth/exchange` - Exchange OAuth code for tokens
+- `POST /api/auth/refresh` - Refresh access token
+- `POST /api/auth/logout` - Logout
+- `GET /api/auth/me` - Get current user
 
 ## Environment Variables
 

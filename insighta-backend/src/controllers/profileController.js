@@ -84,14 +84,14 @@ export const getProfiles = async (req, res) => {
       total,
       total_pages: totalPages,
       links: {
-        self: buildPageLink("/api/v1/profiles", req.query, safePage, safeLimit),
+        self: buildPageLink("/api/profiles", req.query, safePage, safeLimit),
         next:
           safePage * safeLimit < total
-            ? buildPageLink("/api/v1/profiles", req.query, safePage + 1, safeLimit)
+            ? buildPageLink("/api/profiles", req.query, safePage + 1, safeLimit)
             : null,
         prev:
           safePage > 1
-            ? buildPageLink("/api/v1/profiles", req.query, safePage - 1, safeLimit)
+            ? buildPageLink("/api/profiles", req.query, safePage - 1, safeLimit)
             : null
       },
       data: data.map(formatProfile)
@@ -197,14 +197,14 @@ export const searchProfiles = async (req, res) => {
       total,
       total_pages: totalPages,
       links: {
-        self: buildPageLink("/api/v1/profiles/search", req.query, safePage, safeLimit),
+        self: buildPageLink("/api/profiles/search", req.query, safePage, safeLimit),
         next:
           safePage * safeLimit < total
-            ? buildPageLink("/api/v1/profiles/search", req.query, safePage + 1, safeLimit)
+            ? buildPageLink("/api/profiles/search", req.query, safePage + 1, safeLimit)
             : null,
         prev:
           safePage > 1
-            ? buildPageLink("/api/v1/profiles/search", req.query, safePage - 1, safeLimit)
+            ? buildPageLink("/api/profiles/search", req.query, safePage - 1, safeLimit)
             : null
       },
       data: data.map(formatProfile)

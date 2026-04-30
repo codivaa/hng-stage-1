@@ -1,7 +1,7 @@
 import axios from "axios";
 import { loadCredentials, saveCredentials } from "./storage.js";
 
-const BASE = "http://localhost:3000/api/v1/auth";
+const BASE = "http://localhost:3000/api/auth";
 
 export const refreshAccessToken = async () => {
   const creds = await loadCredentials();

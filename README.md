@@ -53,9 +53,9 @@ Authentication is based on GitHub OAuth with PKCE to support both browser and CL
 ### Web Portal Flow
 
 1. User clicks login in the web portal
-2. Web frontend redirects to backend: `/api/v1/auth/github`
+2. Web frontend redirects to backend: `/api/auth/github`
 3. Backend builds an OAuth request to GitHub with PKCE and the configured callback URL
-4. GitHub redirects back to backend at `/api/v1/auth/github/callback`
+4. GitHub redirects back to backend at `/api/auth/github/callback`
 5. Backend exchanges the authorization code for a GitHub access token
 6. Backend creates/updates the user, issues JWT access and refresh tokens, and sets them in HTTP-only cookies
 7. User is redirected to the web dashboard
@@ -63,9 +63,9 @@ Authentication is based on GitHub OAuth with PKCE to support both browser and CL
 ### CLI Flow
 
 1. CLI generates PKCE values and starts a local callback server on `http://localhost:5178/callback`
-2. CLI opens the default browser and starts GitHub login via backend: `/api/v1/auth/github?redirect_uri=http://localhost:5178/callback`
+2. CLI opens the default browser and starts GitHub login via backend: `/api/auth/github?redirect_uri=http://localhost:5178/callback`
 3. GitHub redirects back to the local callback server after user consent
-4. CLI captures the authorization code and POSTs it to backend: `/api/v1/auth/exchange`
+4. CLI captures the authorization code and POSTs it to backend: `/api/auth/exchange`
 5. Backend exchanges the code with GitHub and returns JWT tokens in JSON
 6. CLI stores tokens locally for future requests
 
@@ -113,7 +113,7 @@ The backend uses JWTs for token handling and supports both cookie-based and bear
 - **Refresh token**
   - Issued as a JWT signed with `JWT_REFRESH_SECRET`
   - Expires in `5 minutes`
-  - Used to request a new access token from `/api/v1/auth/refresh`
+  - Used to request a new access token from `/api/auth/refresh`
 
 ### Web
 
@@ -125,7 +125,7 @@ The backend uses JWTs for token handling and supports both cookie-based and bear
 
 - Stores `access_token` and `refresh_token` locally (not in cookies)
 - Sends the access token using the `Authorization: Bearer <token>` header
-- Uses `POST /api/v1/auth/refresh` to renew expired tokens
+- Uses `POST /api/auth/refresh` to renew expired tokens
 
 ---
 
@@ -188,18 +188,18 @@ Profile search accepts free text and maps common keywords into query filters.
 ## Backend API Notes
 
 - All profile routes are protected and require authentication
-- `GET /api/v1/profiles`
+- `GET /api/profiles`
   - supports query filters, sorting, and pagination
-- `GET /api/v1/profiles/search?q=<query>`
+- `GET /api/profiles/search?q=<query>`
   - natural language search with keyword mapping
-- `GET /api/v1/profiles/:id`
-- `POST /api/v1/profiles`
+- `GET /api/profiles/:id`
+- `POST /api/profiles`
   - admin only
-- `DELETE /api/v1/profiles/:id`
+- `DELETE /api/profiles/:id`
   - admin only
-- `POST /api/v1/auth/exchange`
+- `POST /api/auth/exchange`
   - exchange GitHub code for tokens (CLI and web)
-- `POST /api/v1/auth/refresh`
+- `POST /api/auth/refresh`
   - refresh access and refresh tokens
 
 ---
