@@ -184,6 +184,7 @@ export const githubCallback = async (req, res) => {
         client_id: process.env.GITHUB_CLIENT_ID,
         client_secret: process.env.GITHUB_CLIENT_SECRET,
         code,
+        redirect_uri: process.env.GITHUB_CALLBACK_URL,
         code_verifier
       },
       { headers: { Accept: "application/json" } }
@@ -270,6 +271,7 @@ export const exchangeCode = async (req, res) => {
         client_id: process.env.GITHUB_CLIENT_ID,
         client_secret: process.env.GITHUB_CLIENT_SECRET,
         code,
+        redirect_uri: process.env.GITHUB_CALLBACK_URL,
         code_verifier
       },
       { headers: { Accept: "application/json" } }
@@ -388,7 +390,10 @@ export const logout = async (req, res) => {
   try {
     const accessTokenFromCookie = req.cookies?.accessToken;
     const accessTokenFromBody = req.body?.access_token;
+    const refreshTokenFromCookie = req.cookies?.refreshToken;
+    const refreshTokenFromBody = req.body?.refresh_token;
     const tokenToVerify = accessTokenFromCookie || accessTokenFromBody;
+    const refreshTokenToInvalidate = refreshTokenFromCookie || refreshTokenFromBody;
 
     if (tokenToVerify) {
       try {
@@ -399,6 +404,13 @@ export const logout = async (req, res) => {
           await user.save();
         }
       } catch (err) {}
+    }
+
+    if (refreshTokenToInvalidate) {
+      await User.findOneAndUpdate(
+        { refresh_token: refreshTokenToInvalidate },
+        { $set: { refresh_token: null } }
+      );
     }
 
     res.clearCookie("accessToken", { httpOnly: true, secure: process.env.NODE_ENV !== "development" });
