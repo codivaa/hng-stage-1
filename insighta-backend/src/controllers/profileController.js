@@ -2,11 +2,8 @@ import { uuidv7 } from "uuidv7";
 import Profile from "../models/Profile.js";
 import { errorResponse } from "../errors/errorHandler.js";
 
-// ==========================
-// 🔹 HELPER
-// ==========================
 const formatProfile = (profile) => ({
-id: profile._id,
+  id: profile.id || profile._id,
   name: profile.name,
   gender: profile.gender,
   gender_probability: profile.gender_probability,
@@ -18,56 +15,61 @@ id: profile._id,
   created_at: profile.created_at
 });
 
-// ==========================
-// 🔹 GET ALL PROFILES
-// ==========================
+const buildFilter = ({ gender, age_group, country_id, country, min_age, max_age }) => {
+  const filter = {};
+
+  if (gender) filter.gender = gender.toLowerCase();
+  if (age_group) filter.age_group = age_group.toLowerCase();
+
+  const normalizedCountry = country || country_id;
+  if (normalizedCountry) filter.country_id = normalizedCountry.toUpperCase();
+
+  if (min_age || max_age) {
+    filter.age = {};
+    if (min_age !== undefined) filter.age.$gte = Number(min_age);
+    if (max_age !== undefined) filter.age.$lte = Number(max_age);
+  }
+
+  return filter;
+};
+
+const buildSort = (sort_by, order) => {
+  const allowedSortFields = ["age", "created_at", "name"];
+  if (!sort_by || !allowedSortFields.includes(sort_by)) return {};
+  return { [sort_by]: order === "desc" ? -1 : 1 };
+};
+
+const buildPagination = (page, limit) => {
+  const safePage = Math.max(1, Number(page) || 1);
+  const safeLimit = Math.min(50, Number(limit) || 10);
+  const skip = (safePage - 1) * safeLimit;
+  return { safePage, safeLimit, skip };
+};
+
+const buildPageLink = (basePath, query, page, limit) => {
+  const params = new URLSearchParams();
+
+  Object.entries(query || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    if (key === "page" || key === "limit") return;
+    params.set(key, String(value));
+  });
+
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+
+  return `${basePath}?${params.toString()}`;
+};
+
 export const getProfiles = async (req, res) => {
   try {
-    const {
-      gender,
-      age_group,
-      country_id,
-      country,
-      min_age,
-      max_age,
-      sort_by,
-      order,
-      page = 1,
-      limit = 10
-    } = req.query;
+    const { page, limit, sort_by, order } = req.query;
 
-    const filter = {};
-
-    if (gender) filter.gender = gender.toLowerCase();
-    if (age_group) filter.age_group = age_group.toLowerCase();
-
-    // ✅ Fix country handling
-    if (country || country_id) {
-      filter.country_id = (country || country_id).toUpperCase();
-    }
-
-    // ✅ Age range
-    if (min_age || max_age) {
-      filter.age = {};
-      if (min_age) filter.age.$gte = Number(min_age);
-      if (max_age) filter.age.$lte = Number(max_age);
-    }
-
-    // ✅ Pagination
-    const safePage = Math.max(1, Number(page));
-    const safeLimit = Math.min(50, Number(limit) || 10);
-    const skip = (safePage - 1) * safeLimit;
-
-    // ✅ Sorting (safe)
-    let sort = {};
-    const allowedSortFields = ["age", "created_at", "name"];
-
-    if (sort_by && allowedSortFields.includes(sort_by)) {
-      sort[sort_by] = order === "desc" ? -1 : 1;
-    }
+    const filter = buildFilter(req.query);
+    const sort = buildSort(sort_by, order);
+    const { safePage, safeLimit, skip } = buildPagination(page, limit);
 
     const total = await Profile.countDocuments(filter);
-
     const data = await Profile.find(filter)
       .sort(sort)
       .skip(skip)
@@ -82,28 +84,24 @@ export const getProfiles = async (req, res) => {
       total,
       total_pages: totalPages,
       links: {
-        self: `/api/v1/profiles?page=${safePage}&limit=${safeLimit}`,
+        self: buildPageLink("/api/v1/profiles", req.query, safePage, safeLimit),
         next:
           safePage * safeLimit < total
-            ? `/api/v1/profiles?page=${safePage + 1}&limit=${safeLimit}`
+            ? buildPageLink("/api/v1/profiles", req.query, safePage + 1, safeLimit)
             : null,
         prev:
           safePage > 1
-            ? `/api/v1/profiles?page=${safePage - 1}&limit=${safeLimit}`
+            ? buildPageLink("/api/v1/profiles", req.query, safePage - 1, safeLimit)
             : null
       },
       data: data.map(formatProfile)
     });
-
   } catch (err) {
     console.error(err);
     return errorResponse(res, 500, "Internal server error");
   }
 };
 
-// ==========================
-// 🔹 CREATE PROFILE (ADMIN)
-// ==========================
 export const createProfile = async (req, res) => {
   try {
     const { name } = req.body;
@@ -115,9 +113,8 @@ export const createProfile = async (req, res) => {
       });
     }
 
-    // 🚀 Replace with real API later (for now mock works)
     const profileData = {
-      id: uuidv7(), // ✅ THIS FIXES YOUR ERROR
+      id: uuidv7(),
       name,
       gender: "female",
       gender_probability: 0.95,
@@ -134,19 +131,15 @@ export const createProfile = async (req, res) => {
       status: "success",
       data: formatProfile(profile)
     });
-
   } catch (err) {
     console.error(err);
     return errorResponse(res, 500, "Internal server error");
   }
 };
 
-// ==========================
-// 🔹 GET SINGLE PROFILE
-// ==========================
 export const getProfile = async (req, res) => {
   try {
-    const profile = await Profile.findById(req.params.id);
+    const profile = await Profile.findOne({ id: req.params.id }) || await Profile.findById(req.params.id);
 
     if (!profile) {
       return res.status(404).json({
@@ -159,18 +152,14 @@ export const getProfile = async (req, res) => {
       status: "success",
       data: formatProfile(profile)
     });
-
   } catch (err) {
     return errorResponse(res, 500, "Internal server error");
   }
 };
 
-// ==========================
-// 🔹 SEARCH PROFILES
-// ==========================
 export const searchProfiles = async (req, res) => {
   try {
-    const { q, page = 1, limit = 10 } = req.query;
+    const { q, page, limit, sort_by, order } = req.query;
 
     if (!q) {
       return res.status(400).json({
@@ -180,60 +169,55 @@ export const searchProfiles = async (req, res) => {
     }
 
     const query = q.toLowerCase();
-
     const filter = {};
 
-    // 🔥 Interpret keywords
-
-    // Gender
     if (query.includes("male")) filter.gender = "male";
     if (query.includes("female")) filter.gender = "female";
-
-    // Country
+    if (query.includes("adult")) filter.age_group = "adult";
+    if (query.includes("young")) filter.age = { $lte: 35 };
+    if (query.includes("old") || query.includes("senior")) filter.age = { $gte: 60 };
     if (query.includes("nigeria")) filter.country_id = "NG";
     if (query.includes("china")) filter.country_id = "CN";
 
-    // Age group
-    if (query.includes("young")) {
-      filter.age = { $lte: 35 };
-    }
-
-    if (query.includes("old") || query.includes("senior")) {
-      filter.age = { $gte: 60 };
-    }
-
-    // Pagination
-    const safePage = Math.max(1, Number(page));
-    const safeLimit = Math.min(50, Number(limit) || 10);
-    const skip = (safePage - 1) * safeLimit;
+    const sort = buildSort(sort_by, order);
+    const { safePage, safeLimit, skip } = buildPagination(page, limit);
 
     const total = await Profile.countDocuments(filter);
-
     const data = await Profile.find(filter)
+      .sort(sort)
       .skip(skip)
       .limit(safeLimit);
+
+    const totalPages = Math.ceil(total / safeLimit);
 
     return res.json({
       status: "success",
       page: safePage,
       limit: safeLimit,
       total,
-      total_pages: Math.ceil(total / safeLimit),
+      total_pages: totalPages,
+      links: {
+        self: buildPageLink("/api/v1/profiles/search", req.query, safePage, safeLimit),
+        next:
+          safePage * safeLimit < total
+            ? buildPageLink("/api/v1/profiles/search", req.query, safePage + 1, safeLimit)
+            : null,
+        prev:
+          safePage > 1
+            ? buildPageLink("/api/v1/profiles/search", req.query, safePage - 1, safeLimit)
+            : null
+      },
       data: data.map(formatProfile)
     });
-
   } catch (err) {
     console.error(err);
     return errorResponse(res, 500, "Internal server error");
   }
 };
 
-// ==========================
-// 🔹 DELETE PROFILE (ADMIN)
-// ==========================
 export const deleteProfile = async (req, res) => {
   try {
-    const profile = await Profile.findById(req.params.id);
+    const profile = await Profile.findOne({ id: req.params.id }) || await Profile.findById(req.params.id);
 
     if (!profile) {
       return res.status(404).json({
@@ -248,7 +232,6 @@ export const deleteProfile = async (req, res) => {
       status: "success",
       message: "Profile deleted"
     });
-
   } catch (err) {
     return errorResponse(res, 500, "Internal server error");
   }
@@ -256,37 +239,45 @@ export const deleteProfile = async (req, res) => {
 
 export const exportProfiles = async (req, res) => {
   try {
-    const { gender, country, format = "csv" } = req.query;
+    const { gender, age_group, country, country_id, min_age, max_age, sort_by, order, format = "csv" } = req.query;
 
-    const filter = {};
-
-    if (gender) filter.gender = gender.toLowerCase();
-    if (country) filter.country_id = country.toUpperCase();
-
-    const profiles = await Profile.find(filter);
-
-    // ❌ If no data
-    if (!profiles.length) {
-      return res.status(404).json({
+    if (format !== "csv") {
+      return res.status(400).json({
         status: "error",
-        message: "No profiles found"
+        message: "Only csv export is supported"
       });
     }
 
-    // ✅ Convert to CSV
-    const csvHeader = "id,name,gender,age,country\n";
+    const filter = buildFilter({ gender, age_group, country, country_id, min_age, max_age });
+    const sort = buildSort(sort_by, order);
 
-    const csvRows = profiles.map(p =>
-      `${p._id},${p.name},${p.gender},${p.age},${p.country_id}`
+    const profiles = await Profile.find(filter).sort(sort);
+    const csvHeader = "id,name,gender,gender_probability,age,age_group,country_id,country_name,country_probability,created_at";
+    const csvRows = profiles.map((p) =>
+      [
+        p.id || p._id,
+        p.name,
+        p.gender,
+        p.gender_probability,
+        p.age,
+        p.age_group,
+        p.country_id,
+        p.country_name,
+        p.country_probability,
+        p.created_at?.toISOString()
+      ]
+        .map((value) => (value === undefined || value === null ? "" : String(value).replace(/"/g, '""')))
+        .map((value) => (value.includes(",") || value.includes("\n") ? `"${value}"` : value))
+        .join(",")
     );
 
-    const csv = csvHeader + csvRows.join("\n");
-
     res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", "attachment; filename=profiles.csv");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="profiles_${Date.now()}.csv"`
+    );
 
-    return res.send(csv);
-
+    return res.send([csvHeader, ...csvRows].join("\n"));
   } catch (err) {
     console.error("EXPORT ERROR:", err);
     return res.status(500).json({

@@ -1,12 +1,29 @@
-import crypto from "crypto";
+function generateRandomString(length) {
+  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+  return result;
+}
 
-export const generatePKCE = () => {
-  const code_verifier = crypto.randomBytes(32).toString("base64url");
+export function generateCodeVerifier() {
+  return generateRandomString(64);
+}
 
-  const code_challenge = crypto
-    .createHash("sha256")
-    .update(code_verifier)
-    .digest("base64url");
+export async function generateCodeChallenge(codeVerifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(codeVerifier);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashString = hashArray.map(b => String.fromCharCode(b)).join('');
+  const base64 = btoa(hashString)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+  return base64;
+}
 
-  return { code_verifier, code_challenge };
-};
+export function generateState() {
+  return generateRandomString(32);
+}

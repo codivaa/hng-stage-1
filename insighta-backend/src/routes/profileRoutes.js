@@ -2,6 +2,7 @@ import express from "express";
 import { protect } from "../middleware/auth.js";
 import { authorize } from "../middleware/authorize.js";
 import { requireApiVersion } from "../middleware/version.js";
+import { apiLimiter } from "../middleware/rateLimiter.js";
 import { exportProfiles } from "../controllers/profileController.js";
 
 import {
@@ -15,6 +16,7 @@ import {
 const router = express.Router();
 
 router.use(protect);
+router.use(apiLimiter);
 router.use(requireApiVersion);
 
 router.get("/", getProfiles);

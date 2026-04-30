@@ -1,66 +1,39 @@
 import React, { useEffect, useContext } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
-import * as authService from '../services/auth';
-import { generateCodeVerifier } from '../utils/pkce';
 
 const LoginPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { loginSuccess } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
+      
+    useEffect(() => {
+      if (user) navigate('/dashboard');
+    }, [user, navigate]);
 
-  useEffect(() => {
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-
-    if (code && state) {
-      handleCallback(code, state);
-    }
-  }, [searchParams]);
-
-  const handleCallback = async (code, state) => {
-    try {
-      setLoading(true);
-      // Retrieve code verifier from sessionStorage
-      const codeVerifier = sessionStorage.getItem(`pkce_verifier_${state}`);
-
-      if (!codeVerifier) {
-        setError('Invalid authentication state');
-        return;
+    useEffect(() => {
+      const errorParam = searchParams.get('error');
+      if (errorParam) {
+        setError('Authentication failed. Please try again.');
+        navigate('/login', { replace: true });
+      } else {
+        setError(null);
       }
-
-      const user = await authService.exchangeCode(code, codeVerifier);
-      loginSuccess(user);
-
-      // Clean up
-      sessionStorage.removeItem(`pkce_verifier_${state}`);
-
-      navigate('/dashboard');
-    } catch (err) {
-      setError('Authentication failed. Please try again.');
-      console.error('Login error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGithubLogin = async () => {
-    try {
+    }, [searchParams]);
+      const handleGithubLogin = async () => {
+        try {
       setLoading(true);
-      const { generateCodeChallenge } = await import('../utils/pkce');
-      const { generateState } = await import('../utils/pkce');
+      setError(null);
+      const { generateCodeVerifier, generateCodeChallenge, generateState } = await import('../utils/pkce');
 
       const codeVerifier = generateCodeVerifier();
       const codeChallenge = await generateCodeChallenge(codeVerifier);
       const state = generateState();
 
-      // Store verifier for later use
-      sessionStorage.setItem(`pkce_verifier_${state}`, codeVerifier);
-
-      const authUrl = authService.getGithubAuthUrl(state, codeChallenge);
-      window.location.href = authUrl;
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      window.location.href = `${apiUrl}/api/v1/auth/github?state=${state}&code_challenge=${codeChallenge}&code_verifier=${codeVerifier}`;
     } catch (err) {
       setError('Failed to initiate login');
       setLoading(false);

@@ -1,19 +1,16 @@
 import mongoose from "mongoose";
+import { uuidv7 } from "uuidv7";
 
 const profileSchema = new mongoose.Schema({
-
-  name: { type: String, required: true, unique: true },
-
+  name: { type: String, required: true },
   gender: String,
   gender_probability: Number,
   sample_size: Number,
-
   age: Number,
   age_group: String,
-
   country_id: String,
+  country_name: String,
   country_probability: Number,
-
   created_at: {
     type: Date,
     default: Date.now
