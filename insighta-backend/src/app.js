@@ -1,10 +1,13 @@
 import express from "express";
+import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import profileRoutes from "./routes/profileRoutes.js";
 import authRoutes from "./routes/auth.js";
-import { authLimiter } from "./middleware/rateLimiter.js";
+import { getCurrentUser } from "./controllers/authController.js";
 import { logger } from "./middleware/logger.js";
+
+dotenv.config();
 
 const app = express();
 
@@ -19,8 +22,9 @@ app.use(cors({
 }));
 
 app.use(logger);
-app.use("/api/auth", authLimiter);
+app.use("/auth", authRoutes);
 app.use("/api/auth", authRoutes);
+app.get("/api/users/me", getCurrentUser);
 app.use("/api/profiles", profileRoutes);
 
 app.get("/", (req, res) => {

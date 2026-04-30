@@ -1,6 +1,7 @@
 import React, { useEffect, useContext } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
+import { getGithubAuthUrl } from '../services/auth';
 
 const LoginPage = () => {
   const [searchParams] = useSearchParams();
@@ -32,8 +33,7 @@ const LoginPage = () => {
       const codeChallenge = await generateCodeChallenge(codeVerifier);
       const state = generateState();
 
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      window.location.href = `${apiUrl}/api/auth/github?state=${state}&code_challenge=${codeChallenge}&code_verifier=${codeVerifier}`;
+      window.location.href = getGithubAuthUrl(state, codeChallenge, codeVerifier);
     } catch (err) {
       setError('Failed to initiate login');
       setLoading(false);

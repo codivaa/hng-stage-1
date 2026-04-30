@@ -117,7 +117,7 @@ The portal uses the same backend APIs as the CLI:
 - `POST /api/auth/exchange` - Exchange OAuth code for tokens
 - `POST /api/auth/refresh` - Refresh access token
 - `POST /api/auth/logout` - Logout
-- `GET /api/auth/me` - Get current user
+- `GET /api/users/me` - Get current user
 
 ## Environment Variables
 
