@@ -203,14 +203,14 @@ export const githubCallback = async (req, res) => {
     res.cookie("accessToken", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== "development",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
       maxAge: 3 * 60 * 1000
     });
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== "development",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
       maxAge: 5 * 60 * 1000
     });
 
@@ -298,14 +298,14 @@ export const exchangeCode = async (req, res) => {
     res.cookie("accessToken", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== "development",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
       maxAge: 3 * 60 * 1000
     });
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== "development",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
       maxAge: 5 * 60 * 1000
     });
 
@@ -339,7 +339,7 @@ export const refreshToken = async (req, res) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
-    const user = await User.findById(decoded.id);
+    const user = await User.findOne({ id: decoded.id });
 
     if (!user || user.refresh_token !== token) {
       return res.status(401).json({ status: "error", message: "Invalid refresh token" });
@@ -356,14 +356,14 @@ export const refreshToken = async (req, res) => {
     res.cookie("accessToken", newAccessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== "development",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
       maxAge: 3 * 60 * 1000
     });
 
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== "development",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
       maxAge: 5 * 60 * 1000
     });
 
@@ -394,7 +394,7 @@ export const logout = async (req, res) => {
     if (tokenToVerify) {
       try {
         const decoded = jwt.verify(tokenToVerify, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id);
+        const user = await User.findOne({ id: decoded.id });
         if (user) {
           user.refresh_token = null;
           await user.save();
@@ -421,7 +421,7 @@ export const getCurrentUser = async (req, res) => {
 
     try {
       const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id);
+      const user = await User.findOne({ id: decoded.id });
 
       if (!user || !user.is_active) {
         return res.status(401).json({ status: "error", message: "Unauthorized" });

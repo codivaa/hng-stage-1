@@ -33,7 +33,7 @@ const LoginPage = () => {
       const state = generateState();
 
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      window.location.href = `${apiUrl}/api/v1/auth/github?state=${state}&code_challenge=${codeChallenge}&code_verifier=${codeVerifier}`;
+      window.location.href = `${apiUrl}/api/auth/github?state=${state}&code_challenge=${codeChallenge}&code_verifier=${codeVerifier}`;
     } catch (err) {
       setError('Failed to initiate login');
       setLoading(false);

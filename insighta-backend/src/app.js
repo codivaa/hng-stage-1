@@ -19,9 +19,9 @@ app.use(cors({
 }));
 
 app.use(logger);
-app.use("/api/v1/auth", authLimiter);
-app.use("/api/v1/auth", authRoutes);
-app.use("/api/v1/profiles", profileRoutes);
+app.use("/api/auth", authLimiter);
+app.use("/api/auth", authRoutes);
+app.use("/api/profiles", profileRoutes);
 
 app.get("/", (req, res) => {
   res.send("HNG Stage 1 API is running 🚀");

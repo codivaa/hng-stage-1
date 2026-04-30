@@ -48,7 +48,7 @@ export default (program) => {
           console.log("🔄 Completing login...");
 
           const response = await axios.post(
-            "http://localhost:3000/api/v1/auth/exchange",
+            "http://localhost:3000/api/auth/exchange",
             { code, code_verifier }
           );
 
@@ -94,7 +94,7 @@ export default (program) => {
     try {
       const creds = await loadCredentials();
       if (creds?.access_token) {
-        await axios.post("http://localhost:3000/api/v1/auth/logout", {
+        await axios.post("http://localhost:3000/api/auth/logout", {
           access_token: creds.access_token
         });
       }
