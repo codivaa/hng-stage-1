@@ -34,7 +34,7 @@ const generateAnalystToken = async () => {
     console.log("\n✅ Analyst tokens generated:\n");
     console.log(`ACCESS_TOKEN=${accessToken}`);
     console.log(`REFRESH_TOKEN=${refreshToken}`);
-    console.log(`ROLE=analyst`);
+    console.log(`ROLE=${analyst.role}`);
     console.log(`USER_ID=${analyst._id}`);
 
     process.exit();

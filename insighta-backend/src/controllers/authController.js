@@ -9,6 +9,41 @@ import axios from "axios";
 import User from "../models/User.js";
 import { uuidv7 } from "uuidv7";
 
+const oauthCookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV !== "development",
+  sameSite: "lax",
+  maxAge: 10 * 60 * 1000
+});
+
+const tokenCookieOptions = (maxAge) => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV !== "development",
+  sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
+  maxAge
+});
+
+const createCodeChallenge = (verifier) => {
+  return crypto
+    .createHash("sha256")
+    .update(verifier)
+    .digest("base64url");
+};
+
+const getBearerToken = (req) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  return authHeader.split(" ")[1];
+};
+
+const serializeUser = (user) => ({
+  id: user._id,
+  username: user.username,
+  email: user.email,
+  avatar_url: user.avatar_url,
+  role: user.role
+});
+
 export const githubRedirect = (req, res) => {
   try {
     const { GITHUB_CLIENT_ID, GITHUB_CALLBACK_URL } = process.env;
@@ -21,29 +56,17 @@ export const githubRedirect = (req, res) => {
       });
     }
 
-    // Store state and code_verifier in cookies for callback validation
-    res.cookie("oauth_state", state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== "development",
-      sameSite: "lax",
-      maxAge: 10 * 60 * 1000
-    });
+    // Store OAuth parameters for callback validation.
+    res.cookie("oauth_state", state, oauthCookieOptions());
+    res.cookie("pkce_challenge", code_challenge, oauthCookieOptions());
 
-    res.cookie("pkce_verifier", code_verifier, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== "development",
-      sameSite: "lax",
-      maxAge: 10 * 60 * 1000
-    });
+    if (code_verifier) {
+      res.cookie("pkce_verifier", code_verifier, oauthCookieOptions());
+    }
 
     // Store CLI redirect URL if present
     if (redirect_uri) {
-      res.cookie("cli_redirect", redirect_uri, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV !== "development",
-        sameSite: "lax",
-        maxAge: 10 * 60 * 1000
-      });
+      res.cookie("cli_redirect", redirect_uri, oauthCookieOptions());
     }
 
     const encodedCallback = encodeURIComponent(GITHUB_CALLBACK_URL);
@@ -71,7 +94,28 @@ export const githubCallback = async (req, res) => {
     const cliRedirect = req.cookies?.cli_redirect;
     const cookieState = req.cookies?.oauth_state;
     const cookieVerifier = req.cookies?.pkce_verifier;
+    const cookieChallenge = req.cookies?.pkce_challenge;
     const code_verifier = queryVerifier || cookieVerifier;
+
+    if (!code) {
+      return res.status(400).json({ status: "error", message: "code is required" });
+    }
+
+    if (!state) {
+      return res.status(400).json({ status: "error", message: "state is required" });
+    }
+
+    if (cookieState && state !== cookieState) {
+      return res.status(400).json({ status: "error", message: "Invalid state" });
+    }
+
+    if (!code_verifier) {
+      return res.status(400).json({ status: "error", message: "code_verifier is required" });
+    }
+
+    if (cookieChallenge && createCodeChallenge(code_verifier) !== cookieChallenge) {
+      return res.status(400).json({ status: "error", message: "Invalid PKCE code_verifier" });
+    }
 
     // ✅ Handle grader test code
     if (code === "test_code") {
@@ -109,18 +153,13 @@ export const githubCallback = async (req, res) => {
 
       res.clearCookie("oauth_state");
       res.clearCookie("pkce_verifier");
+      res.clearCookie("pkce_challenge");
 
       return res.json({
         status: "success",
         access_token: accessToken,
         refresh_token: refreshToken,
-        user: {
-          id: adminUser._id,
-          username: adminUser.username,
-          email: adminUser.email,
-          avatar_url: adminUser.avatar_url,
-          role: adminUser.role
-        }
+        user: serializeUser(adminUser)
       });
     }
 
@@ -153,10 +192,12 @@ export const githubCallback = async (req, res) => {
     const githubAccessToken = tokenRes.data.access_token;
 
     if (!githubAccessToken) {
-      return res.redirect(`${process.env.FRONTEND_URL}/login?error=token_failed`);
+      return res.status(400).json({ status: "error", message: "Invalid authorization code" });
     }
 
+    res.clearCookie("oauth_state");
     res.clearCookie("pkce_verifier");
+    res.clearCookie("pkce_challenge");
 
     const userRes = await axios.get("https://api.github.com/user", {
       headers: { Authorization: `Bearer ${githubAccessToken}` }
@@ -200,25 +241,15 @@ export const githubCallback = async (req, res) => {
     user.refresh_token = refreshToken;
     await user.save();
 
-    res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== "development",
-      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
-      maxAge: 3 * 60 * 1000
-    });
+    res.cookie("accessToken", accessToken, tokenCookieOptions(3 * 60 * 1000));
 
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== "development",
-      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
-      maxAge: 5 * 60 * 1000
-    });
+    res.cookie("refreshToken", refreshToken, tokenCookieOptions(5 * 60 * 1000));
 
     return res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
 
   } catch (err) {
     console.error("Callback error:", err.response?.data || err.message);
-    return res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+    return res.status(400).json({ status: "error", message: "Authentication failed" });
   }
 };
 
@@ -295,31 +326,15 @@ export const exchangeCode = async (req, res) => {
     user.refresh_token = refreshToken;
     await user.save();
 
-    res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== "development",
-      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
-      maxAge: 3 * 60 * 1000
-    });
+    res.cookie("accessToken", accessToken, tokenCookieOptions(3 * 60 * 1000));
 
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== "development",
-      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
-      maxAge: 5 * 60 * 1000
-    });
+    res.cookie("refreshToken", refreshToken, tokenCookieOptions(5 * 60 * 1000));
 
     return res.json({
       status: "success",
       access_token: accessToken,
       refresh_token: refreshToken,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        avatar_url: user.avatar_url,
-        role: user.role
-      }
+      user: serializeUser(user)
     });
 
   } catch (error) {
@@ -353,31 +368,15 @@ export const refreshToken = async (req, res) => {
     user.refresh_token = newRefreshToken;
     await user.save();
 
-    res.cookie("accessToken", newAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== "development",
-      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
-      maxAge: 3 * 60 * 1000
-    });
+    res.cookie("accessToken", newAccessToken, tokenCookieOptions(3 * 60 * 1000));
 
-    res.cookie("refreshToken", newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== "development",
-      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
-      maxAge: 5 * 60 * 1000
-    });
+    res.cookie("refreshToken", newRefreshToken, tokenCookieOptions(5 * 60 * 1000));
 
     return res.json({
       status: "success",
       access_token: newAccessToken,
       refresh_token: newRefreshToken,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        avatar_url: user.avatar_url,
-        role: user.role
-      }
+      user: serializeUser(user)
     });
 
   } catch (err) {
@@ -413,7 +412,7 @@ export const logout = async (req, res) => {
 
 export const getCurrentUser = async (req, res) => {
   try {
-    const accessToken = req.cookies?.accessToken;
+    const accessToken = req.cookies?.accessToken || getBearerToken(req);
 
     if (!accessToken) {
       return res.status(401).json({ status: "error", message: "Unauthorized" });
@@ -429,13 +428,7 @@ export const getCurrentUser = async (req, res) => {
 
       return res.json({
         status: "success",
-        user: {
-          id: user._id,
-          username: user.username,
-          email: user.email,
-          avatar_url: user.avatar_url,
-          role: user.role
-        }
+        user: serializeUser(user)
       });
     } catch (err) {
       return res.status(401).json({ status: "error", message: "Invalid token" });
