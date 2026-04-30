@@ -1,77 +1,104 @@
 import open from "open";
 import http from "http";
-import crypto from "crypto";
 import axios from "axios";
 
-import { AUTH_URL } from "../config/index.js";
+import { AUTH_API_URL, AUTH_URL, CONFIG_FILE } from "../config/index.js";
 import { generateCodeVerifier, generateCodeChallenge, generateState } from "../utils/pkce.js";
 import { saveCredentials, loadCredentials, clearCredentials } from "../services/storage.js";
 
-export default (program) => {
+const CALLBACK_PORT = 5178;
 
+const sendHtml = (res, statusCode, message) => {
+  res.writeHead(statusCode, { "Content-Type": "text/html" });
+  res.end(`<p>${message}</p>`);
+};
+
+export default (program) => {
   program.command("login").action(async () => {
     const code_verifier = generateCodeVerifier();
     const code_challenge = await generateCodeChallenge(code_verifier);
     const state = generateState();
+    const redirectUri = `http://localhost:${CALLBACK_PORT}/callback`;
 
-    const port = 5178;
-    const redirectUri = `http://localhost:${port}/callback`;
+    const params = new URLSearchParams({
+      state,
+      code_challenge,
+      code_verifier,
+      redirect_uri: redirectUri
+    });
 
-    const url =
-      `${AUTH_URL}?state=${state}` +
-      `&code_challenge=${code_challenge}` +
-      `&code_verifier=${code_verifier}` +
-      `&redirect_uri=${redirectUri}`;
-
-    console.log("🌐 Opening browser...");
-    await open(url);
+    const url = `${AUTH_URL}?${params.toString()}`;
 
     const server = http.createServer(async (req, res) => {
-      if (req.url.startsWith("/callback")) {
-        console.log("👉 Callback received");
+      if (!req.url?.startsWith("/callback")) {
+        sendHtml(res, 404, "Not found");
+        return;
+      }
 
-        const parsed = new URL(req.url, `http://localhost:${port}`);
-        const code = parsed.searchParams.get("code");
-        const returnedState = parsed.searchParams.get("state");
+      const parsed = new URL(req.url, redirectUri);
+      const code = parsed.searchParams.get("code");
+      const returnedState = parsed.searchParams.get("state");
+      const error = parsed.searchParams.get("error");
 
-        if (returnedState !== state) {
-          res.end("❌ Invalid state");
-          server.close();
-          console.error("❌ State mismatch");
-          return;
-        }
-
-        res.end("✅ Login complete. You can close this tab.");
+      if (error) {
+        sendHtml(res, 400, "Login failed. You can close this tab.");
         server.close();
+        console.error(`Login failed: ${error}`);
+        return;
+      }
 
-        try {
-          console.log("🔄 Completing login...");
+      if (!code) {
+        sendHtml(res, 400, "Missing authorization code. You can close this tab.");
+        server.close();
+        console.error("Login failed: missing authorization code");
+        return;
+      }
 
-          const response = await axios.post(
-            "http://localhost:3000/api/auth/exchange",
-            { code, code_verifier }
-          );
+      if (returnedState !== state) {
+        sendHtml(res, 400, "Invalid state. You can close this tab.");
+        server.close();
+        console.error("Login failed: state mismatch");
+        return;
+      }
 
-          await saveCredentials({
-            access_token: response.data.access_token,
-            refresh_token: response.data.refresh_token,
-            user: response.data.user
-          });
+      try {
+        console.log("Completing login...");
 
-          console.log(`✅ Logged in as @${response.data.user.username}`);
+        const response = await axios.post(`${AUTH_API_URL}/exchange`, {
+          code,
+          code_verifier
+        });
 
-        } catch (err) {
-          console.error("❌ Login failed:", err.response?.data || err.message);
-        }
+        await saveCredentials({
+          access_token: response.data.access_token,
+          refresh_token: response.data.refresh_token,
+          user: response.data.user
+        });
+
+        sendHtml(res, 200, "Login complete. You can close this tab.");
+        console.log(`Logged in as @${response.data.user.username}`);
+        console.log(`Credentials saved to ${CONFIG_FILE}`);
+      } catch (err) {
+        sendHtml(res, 500, "Login failed. You can close this tab.");
+        console.error("Login failed:", err.response?.data || err.message);
+      } finally {
+        server.close();
       }
     });
 
     server.on("error", (err) => {
-      console.error("❌ Server error:", err.message);
+      if (err.code === "EADDRINUSE") {
+        console.error(`Port ${CALLBACK_PORT} is already in use. Stop the other process and retry.`);
+        return;
+      }
+
+      console.error("Callback server error:", err.message);
     });
 
-    server.listen(port, () => {
-      console.log(`🟢 Listening on http://localhost:${port}`);
+    server.listen(CALLBACK_PORT, async () => {
+      console.log(`Listening for callback on ${redirectUri}`);
+      console.log("Opening GitHub login in your browser...");
+      await open(url);
     });
   });
 
@@ -79,31 +106,32 @@ export default (program) => {
     try {
       const creds = await loadCredentials();
       if (!creds?.access_token) {
-        console.log("❌ Not logged in. Run: insighta login");
+        console.log("Not logged in. Run: insighta login");
         return;
       }
-      console.log(`✅ Logged in as @${creds.user?.username || "unknown"}`);
-      console.log(`   Role: ${creds.user?.role || "unknown"}`);
-      console.log(`   Email: ${creds.user?.email || "unknown"}`);
+
+      console.log(`Logged in as @${creds.user?.username || "unknown"}`);
+      console.log(`Role: ${creds.user?.role || "unknown"}`);
+      console.log(`Email: ${creds.user?.email || "unknown"}`);
     } catch (err) {
-      console.error("❌ Error:", err.message);
+      console.error("Error:", err.message);
     }
   });
 
   program.command("logout").action(async () => {
     try {
       const creds = await loadCredentials();
-      if (creds?.access_token) {
-        await axios.post("http://localhost:3000/api/auth/logout", {
+      if (creds?.refresh_token || creds?.access_token) {
+        await axios.post(`${AUTH_API_URL}/logout`, {
+          refresh_token: creds.refresh_token,
           access_token: creds.access_token
         });
       }
-      await clearCredentials();
-      console.log("✅ Logged out successfully");
     } catch (err) {
+      // Local credentials should still be cleared if the remote token is already invalid.
+    } finally {
       await clearCredentials();
-      console.log("✅ Logged out successfully");
+      console.log("Logged out successfully");
     }
   });
-
 };

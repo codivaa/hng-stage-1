@@ -7,14 +7,8 @@ export const loadCredentials = async () => {
 };
 
 export const saveCredentials = async (data) => {
-  console.log("💾 Saving credentials...");
-  console.log("📁 Path:", CONFIG_FILE);
-  console.log("📦 Data:", data);
-
   await fs.ensureDir(CONFIG_DIR);
   await fs.writeJson(CONFIG_FILE, data, { spaces: 2 });
-
-  console.log("✅ Credentials saved successfully");
 };
 
 export const clearCredentials = async () => {
