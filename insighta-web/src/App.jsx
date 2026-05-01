@@ -13,9 +13,10 @@ import AccountPage from './pages/AccountPage';
 function App() {
   return (
     <Router>
+      {/* AuthProvider keeps login state available to every route. */}
       <AuthProvider>
         <Routes>
-          {/* Public Routes */}
+          {/* Public route: logged-in users are redirected away from login. */}
           <Route
             path="/login"
             element={
@@ -25,7 +26,7 @@ function App() {
             }
           />
 
-          {/* Protected Routes */}
+          {/* Protected routes: users must have a valid session to view these pages. */}
           <Route
             path="/dashboard"
             element={
@@ -71,7 +72,7 @@ function App() {
             }
           />
 
-          {/* Default redirect */}
+          {/* Unknown paths fall back to login. */}
           <Route path="/" element={<LoginPage />} />
           <Route path="*" element={<LoginPage />} />
         </Routes>

@@ -7,9 +7,11 @@ dotenv.config();
 
 const generateAnalystToken = async () => {
   try {
+    // Connect directly because token generation runs outside the Express server.
     await mongoose.connect(process.env.MONGO_URI);
-    console.log("✅ Connected to DB");
+    console.log("Connected to DB");
 
+    // Reuse the seeded analyst if it exists, otherwise create one.
     let analyst = await User.findOne({ github_id: "seed_analyst" });
 
     if (!analyst) {
@@ -22,16 +24,17 @@ const generateAnalystToken = async () => {
         is_active: true,
         last_login_at: new Date()
       });
-      console.log("✅ Analyst user created:", analyst.username);
+      console.log("Analyst user created:", analyst.username);
     }
 
+    // Generate a fresh token pair and store the refresh token for rotation checks.
     const accessToken = generateAccessToken(analyst);
     const refreshToken = generateRefreshToken(analyst);
 
     analyst.refresh_token = refreshToken;
     await analyst.save();
 
-    console.log("\n✅ Analyst tokens generated:\n");
+    console.log("\nAnalyst tokens generated:\n");
     console.log(`ACCESS_TOKEN=${accessToken}`);
     console.log(`REFRESH_TOKEN=${refreshToken}`);
     console.log(`ROLE=${analyst.role}`);
@@ -39,7 +42,7 @@ const generateAnalystToken = async () => {
 
     process.exit();
   } catch (err) {
-    console.error("❌ Token generation failed:", err.message);
+    console.error("Token generation failed:", err.message);
     process.exit(1);
   }
 };

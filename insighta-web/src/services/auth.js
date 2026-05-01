@@ -1,6 +1,6 @@
 import api from './api';
 
-// Get current user
+// Ask the backend who is logged in using the HTTP-only cookie session.
 export const getCurrentUser = async () => {
   try {
     const response = await api.get('/users/me');
@@ -10,7 +10,7 @@ export const getCurrentUser = async () => {
   }
 };
 
-// Logout
+// Tell the backend to invalidate the refresh token and clear auth cookies.
 export const logout = async () => {
   try {
     await api.post('/auth/logout');
@@ -20,11 +20,12 @@ export const logout = async () => {
 };
 
 const getApiHost = () => {
+  // GitHub redirects need the backend host without the /api suffix.
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   return apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
 };
 
-// Get GitHub OAuth redirect URL
+// Build the backend /auth/github URL that starts the GitHub OAuth flow.
 export const getGithubAuthUrl = (state, codeChallenge, codeVerifier) => {
   const params = new URLSearchParams({
     state,
@@ -38,7 +39,7 @@ export const getGithubAuthUrl = (state, codeChallenge, codeVerifier) => {
   return `${getApiHost()}/auth/github?${params.toString()}`;
 };
 
-// Exchange code for token
+// CLI-style code exchange helper; web login mainly uses the backend callback redirect.
 export const exchangeCode = async (code, codeVerifier) => {
   try {
     const response = await api.post('/auth/exchange', {
@@ -52,7 +53,7 @@ export const exchangeCode = async (code, codeVerifier) => {
   }
 };
 
-// Refresh token
+// Manually refresh the browser session when needed.
 export const refreshAccessToken = async () => {
   try {
     const response = await api.post('/auth/refresh');

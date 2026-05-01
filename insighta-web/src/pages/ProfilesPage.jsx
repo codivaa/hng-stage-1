@@ -4,6 +4,7 @@ import { Header, MainContent, Navigation } from '../components/Layout';
 import * as profileService from '../services/profiles';
 
 const ProfilesPage = () => {
+  // Profiles page loads paginated profile data and applies filter controls.
   const { user, logout } = useContext(AuthContext);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);

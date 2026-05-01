@@ -5,6 +5,7 @@ import { Header, MainContent, Navigation } from '../components/Layout';
 import * as profileService from '../services/profiles';
 
 const ProfileDetailPage = () => {
+  // Profile detail page reads the route id and loads one profile from the API.
   const { id } = useParams();
   const { user, logout } = useContext(AuthContext);
   const [profile, setProfile] = useState(null);

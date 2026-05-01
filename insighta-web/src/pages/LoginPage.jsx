@@ -4,6 +4,7 @@ import { AuthContext } from '../contexts/AuthContext';
 import { getGithubAuthUrl } from '../services/auth';
 
 const LoginPage = () => {
+  // Search params let this page show an error if the backend redirects back with ?error=...
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
@@ -11,10 +12,12 @@ const LoginPage = () => {
   const [error, setError] = React.useState(null);
       
     useEffect(() => {
+      // If the user is already logged in, skip login and send them to the dashboard.
       if (user) navigate('/dashboard');
     }, [user, navigate]);
 
     useEffect(() => {
+      // Backend can redirect here with an error query when GitHub auth fails.
       const errorParam = searchParams.get('error');
       if (errorParam) {
         setError('Authentication failed. Please try again.');
@@ -27,12 +30,15 @@ const LoginPage = () => {
         try {
       setLoading(true);
       setError(null);
+
+      // Generate PKCE values in the browser before starting GitHub OAuth.
       const { generateCodeVerifier, generateCodeChallenge, generateState } = await import('../utils/pkce');
 
       const codeVerifier = generateCodeVerifier();
       const codeChallenge = await generateCodeChallenge(codeVerifier);
       const state = generateState();
 
+      // Send the browser to my backend endpoint, which then redirects to GitHub.
       window.location.href = getGithubAuthUrl(state, codeChallenge, codeVerifier);
     } catch (err) {
       setError('Failed to initiate login');

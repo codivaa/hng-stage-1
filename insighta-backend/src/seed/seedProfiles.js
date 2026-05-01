@@ -8,23 +8,25 @@ dotenv.config();
 
 const seed = async () => {
   try {
+    // Connect directly because seed scripts run outside the Express server.
     await mongoose.connect(process.env.MONGO_URI);
     console.log("DB connected");
 
-    for (const p of data.profiles) {
+    // Insert profiles from profiles.json without duplicating existing names.
+    for (const profile of data.profiles) {
       await Profile.updateOne(
-        { name: p.name.toLowerCase() },
+        { name: profile.name.toLowerCase() },
         {
           $setOnInsert: {
             id: uuidv7(),
-            name: p.name.toLowerCase(),
-            gender: p.gender,
-            gender_probability: p.gender_probability,
-            age: p.age,
-            age_group: p.age_group,
-            country_id: p.country_id,
-            country_name: p.country_name,
-            country_probability: p.country_probability,
+            name: profile.name.toLowerCase(),
+            gender: profile.gender,
+            gender_probability: profile.gender_probability,
+            age: profile.age,
+            age_group: profile.age_group,
+            country_id: profile.country_id,
+            country_name: profile.country_name,
+            country_probability: profile.country_probability,
             created_at: new Date().toISOString()
           }
         },
@@ -34,7 +36,6 @@ const seed = async () => {
 
     console.log("Seeding complete");
     process.exit();
-
   } catch (err) {
     console.error(err);
     process.exit(1);
