@@ -15,6 +15,7 @@ const formatProfile = (profile) => ({
 });
 
 const buildFilter = ({ gender, age_group, country_id, country, min_age, max_age }) => {
+  // Convert query parameters into a MongoDB filter object.
   const filter = {};
 
   if (gender) filter.gender = gender.toLowerCase();
@@ -33,12 +34,14 @@ const buildFilter = ({ gender, age_group, country_id, country, min_age, max_age 
 };
 
 const buildSort = (sort_by, order) => {
+  // Only allow sorting by fields I expect, so random query fields are ignored.
   const allowedSortFields = ["age", "created_at", "name"];
   if (!sort_by || !allowedSortFields.includes(sort_by)) return {};
   return { [sort_by]: order === "desc" ? -1 : 1 };
 };
 
 const buildPagination = (page, limit) => {
+  // Normalize pagination values and cap the limit to avoid huge responses.
   const safePage = Math.max(1, Number(page) || 1);
   const safeLimit = Math.min(50, Number(limit) || 10);
   const skip = (safePage - 1) * safeLimit;
@@ -61,6 +64,7 @@ const buildPageLink = (basePath, query, page, limit) => {
 };
 
 const buildSearchFilter = (searchTerm) => {
+  // Convert simple natural-language search text into profile filters.
   const query = searchTerm.toLowerCase();
   const filter = {};
 
@@ -76,6 +80,7 @@ const buildSearchFilter = (searchTerm) => {
 };
 
 const getPaginatedProfiles = async ({ query, filter, basePath }) => {
+  // Shared pagination logic for both list and search endpoints.
   const { page, limit, sort_by, order } = query;
   const sort = buildSort(sort_by, order);
   const { safePage, safeLimit, skip } = buildPagination(page, limit);
@@ -132,6 +137,7 @@ export const searchProfilesByQuery = async (query) => {
 };
 
 export const createProfileRecord = async ({ name }) => {
+  // Profile creation currently generates the analytics fields automatically.
   if (!name) {
     const error = new Error("Name is required");
     error.status = 400;
@@ -154,6 +160,7 @@ export const createProfileRecord = async ({ name }) => {
 };
 
 export const findProfileById = async (id) => {
+  // Support both the custom UUID field and MongoDB's _id.
   const profile = await Profile.findOne({ id }) || await Profile.findById(id);
 
   if (!profile) {
@@ -176,6 +183,7 @@ export const deleteProfileById = async (id) => {
 };
 
 export const exportProfilesAsCsv = async (query) => {
+  // Export uses the same filter/sort logic as listing, then formats rows as CSV.
   const { gender, age_group, country, country_id, min_age, max_age, sort_by, order, format = "csv" } = query;
 
   if (format !== "csv") {

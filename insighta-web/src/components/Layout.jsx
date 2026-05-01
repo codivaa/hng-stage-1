@@ -1,6 +1,7 @@
 import React from 'react';
 
 export const Layout = ({ children }) => {
+  // Simple page wrapper used to keep app pages full height.
   return (
     <div className="layout" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {children}
@@ -9,6 +10,7 @@ export const Layout = ({ children }) => {
 };
 
 export const Header = ({ children }) => {
+  // Reusable top bar container.
   return (
     <header style={{
       backgroundColor: '#fff',
@@ -23,6 +25,7 @@ export const Header = ({ children }) => {
 };
 
 export const Sidebar = ({ children }) => {
+  // Reusable sidebar container for dashboard-style pages.
   return (
     <aside style={{
       width: '250px',
@@ -37,6 +40,7 @@ export const Sidebar = ({ children }) => {
 };
 
 export const MainContent = ({ children }) => {
+  // Main content area keeps page content centered with consistent spacing.
   return (
     <main style={{
       flex: 1,
@@ -51,6 +55,7 @@ export const MainContent = ({ children }) => {
 };
 
 export const Navigation = ({ items, isActive }) => {
+  // Navigation receives menu items and highlights the current active path.
   return (
     <nav>
       <ul style={{ listStyle: 'none' }}>

@@ -4,6 +4,7 @@ import { Header, MainContent, Navigation } from '../components/Layout';
 import * as profileService from '../services/profiles';
 
 const SearchPage = () => {
+  // Search page sends natural-language queries to the backend search endpoint.
   const { user, logout } = useContext(AuthContext);
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState([]);

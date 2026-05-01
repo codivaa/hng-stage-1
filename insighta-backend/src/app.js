@@ -22,9 +22,16 @@ app.use(cors({
 }));
 
 app.use(logger);
+
+// Auth routes are exposed with both prefixes:
+// /auth/... matches the project requirements, while /api/auth/... supports app clients.
 app.use("/auth", authRoutes);
 app.use("/api/auth", authRoutes);
+
+// Current-user endpoint used by the web app/graders to fetch the logged-in user.
 app.get("/api/users/me", getCurrentUser);
+
+// Protected profile API routes.
 app.use("/api/profiles", profileRoutes);
 
 app.get("/", (req, res) => {

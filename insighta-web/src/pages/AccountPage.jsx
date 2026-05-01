@@ -3,6 +3,7 @@ import { AuthContext } from '../contexts/AuthContext';
 import { Header, MainContent, Navigation } from '../components/Layout';
 
 const AccountPage = () => {
+  // Account page displays the current user's profile and role information.
   const { user, logout } = useContext(AuthContext);
   const [error, setError] = React.useState(null);
 

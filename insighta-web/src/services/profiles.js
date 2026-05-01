@@ -1,6 +1,6 @@
 import api from './api';
 
-// Get all profiles with filters and pagination
+// Get all profiles. params can include gender, country, age_group, page, limit, etc.
 export const getProfiles = async (params) => {
   try {
     const response = await api.get('/profiles', { params });
@@ -10,7 +10,7 @@ export const getProfiles = async (params) => {
   }
 };
 
-// Get single profile by ID
+// Get one profile by its custom UUID/Mongo id.
 export const getProfile = async (id) => {
   try {
     const response = await api.get(`/profiles/${id}`);
@@ -20,7 +20,7 @@ export const getProfile = async (id) => {
   }
 };
 
-// Search profiles
+// Search profiles using natural language text, plus pagination.
 export const searchProfiles = async (query, page = 1, limit = 10) => {
   try {
     const response = await api.get('/profiles/search', {
@@ -32,7 +32,7 @@ export const searchProfiles = async (query, page = 1, limit = 10) => {
   }
 };
 
-// Export profiles (admin only)
+// Export profiles as a CSV blob. Backend enforces admin access where required.
 export const exportProfiles = async (filters = {}) => {
   try {
     const response = await api.get('/profiles/export', {
@@ -45,7 +45,7 @@ export const exportProfiles = async (filters = {}) => {
   }
 };
 
-// Create profile (admin only)
+// Create a profile. Backend checks that the user is an admin.
 export const createProfile = async (profileData) => {
   try {
     const response = await api.post('/profiles', profileData);
@@ -55,7 +55,7 @@ export const createProfile = async (profileData) => {
   }
 };
 
-// Delete profile (admin only)
+// Delete a profile. Backend checks that the user is an admin.
 export const deleteProfile = async (id) => {
   try {
     const response = await api.delete(`/profiles/${id}`);

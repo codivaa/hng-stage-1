@@ -8,6 +8,7 @@ import { saveCredentials, loadCredentials, clearCredentials } from "../services/
 
 const CALLBACK_PORT = 5178;
 
+// Small HTML response helper for the temporary browser callback page.
 const sendHtml = (res, statusCode, message) => {
   res.writeHead(statusCode, { "Content-Type": "text/html" });
   res.end(`<p>${message}</p>`);
@@ -15,11 +16,13 @@ const sendHtml = (res, statusCode, message) => {
 
 export default (program) => {
   program.command("login").action(async () => {
+    // PKCE values make the OAuth flow safe for CLI/browser login.
     const code_verifier = generateCodeVerifier();
     const code_challenge = await generateCodeChallenge(code_verifier);
     const state = generateState();
     const redirectUri = `http://localhost:${CALLBACK_PORT}/callback`;
 
+    // These query params are sent to my backend, which then redirects to GitHub.
     const params = new URLSearchParams({
       state,
       code_challenge,
@@ -29,6 +32,7 @@ export default (program) => {
 
     const url = `${AUTH_URL}?${params.toString()}`;
 
+    // The CLI starts a temporary local server to receive the OAuth callback.
     const server = http.createServer(async (req, res) => {
       if (!req.url?.startsWith("/callback")) {
         sendHtml(res, 404, "Not found");
@@ -40,6 +44,7 @@ export default (program) => {
       const returnedState = parsed.searchParams.get("state");
       const error = parsed.searchParams.get("error");
 
+      // If GitHub/backend sends an OAuth error, stop the login.
       if (error) {
         sendHtml(res, 400, "Login failed. You can close this tab.");
         server.close();
@@ -47,6 +52,7 @@ export default (program) => {
         return;
       }
 
+      // The code is what the CLI exchanges with my backend for app tokens.
       if (!code) {
         sendHtml(res, 400, "Missing authorization code. You can close this tab.");
         server.close();
@@ -54,6 +60,7 @@ export default (program) => {
         return;
       }
 
+      // State must match the value generated before opening GitHub.
       if (returnedState !== state) {
         sendHtml(res, 400, "Invalid state. You can close this tab.");
         server.close();
@@ -64,11 +71,13 @@ export default (program) => {
       try {
         console.log("Completing login...");
 
+        // Final CLI login step: exchange GitHub code + verifier for my app tokens.
         const response = await axios.post(`${AUTH_API_URL}/exchange`, {
           code,
           code_verifier
         });
 
+        // Save tokens to ~/.insighta/credentials.json for future CLI requests.
         await saveCredentials({
           access_token: response.data.access_token,
           refresh_token: response.data.refresh_token,
@@ -86,6 +95,7 @@ export default (program) => {
       }
     });
 
+    // If the callback port is busy, the CLI cannot receive GitHub's response.
     server.on("error", (err) => {
       if (err.code === "EADDRINUSE") {
         console.error(`Port ${CALLBACK_PORT} is already in use. Stop the other process and retry.`);
@@ -95,6 +105,7 @@ export default (program) => {
       console.error("Callback server error:", err.message);
     });
 
+    // Start listening before opening the browser to avoid missing the callback.
     server.listen(CALLBACK_PORT, async () => {
       console.log(`Listening for callback on ${redirectUri}`);
       console.log("Opening GitHub login in your browser...");
@@ -104,6 +115,7 @@ export default (program) => {
 
   program.command("whoami").action(async () => {
     try {
+      // whoami reads the saved credentials and prints the cached user info.
       const creds = await loadCredentials();
       if (!creds?.access_token) {
         console.log("Not logged in. Run: insighta login");
@@ -120,6 +132,7 @@ export default (program) => {
 
   program.command("logout").action(async () => {
     try {
+      // Send tokens to the backend so the refresh token can be invalidated.
       const creds = await loadCredentials();
       if (creds?.refresh_token || creds?.access_token) {
         await axios.post(`${AUTH_API_URL}/logout`, {

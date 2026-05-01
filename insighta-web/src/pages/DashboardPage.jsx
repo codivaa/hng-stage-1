@@ -4,6 +4,7 @@ import { Header, MainContent, Navigation } from '../components/Layout';
 import * as profileService from '../services/profiles';
 
 const DashboardPage = () => {
+  // Dashboard shows quick profile stats after the user is authenticated.
   const { user, logout } = useContext(AuthContext);
   const navigate = window.location;
   const [metrics, setMetrics] = useState(null);

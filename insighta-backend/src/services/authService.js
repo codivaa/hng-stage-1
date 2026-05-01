@@ -40,6 +40,7 @@ export const serializeUser = (user) => ({
 });
 
 export const buildGithubAuthorizationUrl = ({ state, code_challenge }) => {
+  // This is where I use the GitHub client ID and callback URL to build the OAuth URL.
   const encodedCallback = encodeURIComponent(process.env.GITHUB_CALLBACK_URL);
 
   return (
@@ -54,10 +55,12 @@ export const buildGithubAuthorizationUrl = ({ state, code_challenge }) => {
 };
 
 export const validateOAuthCallback = ({ code, state, codeVerifier, cookieState, cookieChallenge }) => {
+  // GitHub must return a code; without it there is nothing to exchange for tokens.
   if (!code) {
     return { valid: false, status: 400, message: "code is required" };
   }
 
+  // State protects the app from accepting callbacks that did not start from my login flow.
   if (!state) {
     return { valid: false, status: 400, message: "state is required" };
   }
@@ -66,10 +69,12 @@ export const validateOAuthCallback = ({ code, state, codeVerifier, cookieState, 
     return { valid: false, status: 400, message: "Invalid state" };
   }
 
+  // PKCE requires a verifier to prove this callback belongs to the original request.
   if (!codeVerifier) {
     return { valid: false, status: 400, message: "code_verifier is required" };
   }
 
+  // I hash the verifier and compare it to the challenge that was saved before redirect.
   if (cookieChallenge && createCodeChallenge(codeVerifier) !== cookieChallenge) {
     return { valid: false, status: 400, message: "Invalid PKCE code_verifier" };
   }
@@ -78,6 +83,7 @@ export const validateOAuthCallback = ({ code, state, codeVerifier, cookieState, 
 };
 
 const issueSession = async (user) => {
+  // My app issues its own short-lived access token and refresh token after GitHub login.
   const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken(user);
 
@@ -110,6 +116,7 @@ export const getOrCreateTestAdminSession = async () => {
 };
 
 const getGithubAccessToken = async ({ code, code_verifier }) => {
+  // Exchange GitHub's temporary code for a GitHub access token.
   const tokenRes = await axios.post(
     "https://github.com/login/oauth/access_token",
     {
@@ -126,6 +133,7 @@ const getGithubAccessToken = async ({ code, code_verifier }) => {
 };
 
 const getGithubUserProfile = async (githubAccessToken) => {
+  // Use the GitHub access token to fetch the user's GitHub profile and primary email.
   const userRes = await axios.get("https://api.github.com/user", {
     headers: { Authorization: `Bearer ${githubAccessToken}` }
   });
@@ -141,6 +149,7 @@ const getGithubUserProfile = async (githubAccessToken) => {
 };
 
 const upsertGithubUser = async ({ githubUser, primaryEmail }) => {
+  // Find the user by GitHub ID; create the user if this is their first login.
   let user = await User.findOne({ github_id: githubUser.id });
 
   if (!user) {
@@ -167,6 +176,7 @@ const upsertGithubUser = async ({ githubUser, primaryEmail }) => {
 };
 
 export const exchangeGithubCodeForSession = async ({ code, code_verifier }) => {
+  // Full login service: GitHub code -> GitHub user -> database user -> app session.
   const githubAccessToken = await getGithubAccessToken({ code, code_verifier });
 
   if (!githubAccessToken) {
@@ -188,6 +198,7 @@ export const exchangeGithubCodeForSession = async ({ code, code_verifier }) => {
 };
 
 export const refreshSession = async (token) => {
+  // Refresh rotates tokens: the old refresh token must match, then a new pair is issued.
   if (!token) {
     const error = new Error("Refresh token required");
     error.status = 400;
@@ -208,6 +219,7 @@ export const refreshSession = async (token) => {
 };
 
 export const invalidateSession = async ({ accessToken, refreshToken }) => {
+  // Logout clears the stored refresh token so it cannot be used again.
   if (accessToken) {
     try {
       const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
@@ -229,6 +241,7 @@ export const invalidateSession = async ({ accessToken, refreshToken }) => {
 };
 
 export const getUserFromAccessToken = async (accessToken) => {
+  // Decode the access token and return the active user attached to it.
   if (!accessToken) {
     const error = new Error("Unauthorized");
     error.status = 401;

@@ -15,15 +15,18 @@ import {
 
 const router = express.Router();
 
+// Every profile route requires a valid access token, rate limiting, and API versioning.
 router.use(protect);
 router.use(apiLimiter);
 router.use(requireApiVersion);
 
+// Analyst/admin read routes.
 router.get("/", getProfiles);
 router.get("/search", searchProfiles);
 router.get("/export", exportProfiles);
 router.get("/:id", getProfile);
 
+// Admin-only write routes.
 router.post("/", authorize("admin"), createProfile);
 router.delete("/:id", authorize("admin"), deleteProfile);
 

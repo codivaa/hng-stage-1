@@ -3,17 +3,17 @@ import { errorResponse } from "../errors/errorHandler.js";
 export const authorize = (role) => {
   return (req, res, next) => {
 
-    // Step 1: make sure user exists (comes from authenticate)
+    // req.user comes from protect middleware after JWT verification.
     if (!req.user) {
       return errorResponse(res, 401, "Unauthorized");
     }
 
-    // Step 2: check role
+    // Only allow users whose role matches the required role, such as "admin".
     if (req.user.role !== role) {
       return errorResponse(res, 403, "Forbidden");
     }
 
-    // Step 3: allow request
+    // Role is valid, so the request can continue to the controller.
     next();
   };
 };
