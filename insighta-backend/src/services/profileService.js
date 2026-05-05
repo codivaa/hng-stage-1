@@ -1,5 +1,9 @@
 import { uuidv7 } from "uuidv7";
 import Profile from "../models/Profile.js";
+import { getCache, setCache, invalidateCache } from "../utils/cache.js";
+import { buildCacheKey } from "../utils/normalizeQuery.js";
+
+const CACHE_TTL = 60; // 60 seconds
 
 const formatProfile = (profile) => ({
   id: profile.id || profile._id,
@@ -15,33 +19,26 @@ const formatProfile = (profile) => ({
 });
 
 const buildFilter = ({ gender, age_group, country_id, country, min_age, max_age }) => {
-  // Convert query parameters into a MongoDB filter object.
   const filter = {};
-
   if (gender) filter.gender = gender.toLowerCase();
   if (age_group) filter.age_group = age_group.toLowerCase();
-
   const normalizedCountry = country || country_id;
   if (normalizedCountry) filter.country_id = normalizedCountry.toUpperCase();
-
   if (min_age || max_age) {
     filter.age = {};
     if (min_age !== undefined) filter.age.$gte = Number(min_age);
     if (max_age !== undefined) filter.age.$lte = Number(max_age);
   }
-
   return filter;
 };
 
 const buildSort = (sort_by, order) => {
-  // Only allow sorting by fields I expect, so random query fields are ignored.
   const allowedSortFields = ["age", "created_at", "name"];
   if (!sort_by || !allowedSortFields.includes(sort_by)) return {};
   return { [sort_by]: order === "desc" ? -1 : 1 };
 };
 
 const buildPagination = (page, limit) => {
-  // Normalize pagination values and cap the limit to avoid huge responses.
   const safePage = Math.max(1, Number(page) || 1);
   const safeLimit = Math.min(50, Number(limit) || 10);
   const skip = (safePage - 1) * safeLimit;
@@ -50,24 +47,19 @@ const buildPagination = (page, limit) => {
 
 const buildPageLink = (basePath, query, page, limit) => {
   const params = new URLSearchParams();
-
   Object.entries(query || {}).forEach(([key, value]) => {
     if (value === undefined || value === null || value === "") return;
     if (key === "page" || key === "limit") return;
     params.set(key, String(value));
   });
-
   params.set("page", String(page));
   params.set("limit", String(limit));
-
   return `${basePath}?${params.toString()}`;
 };
 
 const buildSearchFilter = (searchTerm) => {
-  // Convert simple natural-language search text into profile filters.
   const query = searchTerm.toLowerCase();
   const filter = {};
-
   if (query.includes("male")) filter.gender = "male";
   if (query.includes("female")) filter.gender = "female";
   if (query.includes("adult")) filter.age_group = "adult";
@@ -75,25 +67,25 @@ const buildSearchFilter = (searchTerm) => {
   if (query.includes("old") || query.includes("senior")) filter.age = { $gte: 60 };
   if (query.includes("nigeria")) filter.country_id = "NG";
   if (query.includes("china")) filter.country_id = "CN";
-
   return filter;
 };
 
-const getPaginatedProfiles = async ({ query, filter, basePath }) => {
-  // Shared pagination logic for both list and search endpoints.
+const getPaginatedProfiles = async ({ query, filter, basePath, cachePrefix }) => {
+  // Check cache first
+  const cacheKey = buildCacheKey(cachePrefix, query);
+  const cached = await getCache(cacheKey);
+  if (cached) return cached;
+
   const { page, limit, sort_by, order } = query;
   const sort = buildSort(sort_by, order);
   const { safePage, safeLimit, skip } = buildPagination(page, limit);
 
   const total = await Profile.countDocuments(filter);
-  const data = await Profile.find(filter)
-    .sort(sort)
-    .skip(skip)
-    .limit(safeLimit);
+  const data = await Profile.find(filter).sort(sort).skip(skip).limit(safeLimit);
 
   const totalPages = Math.ceil(total / safeLimit);
 
-  return {
+  const result = {
     status: "success",
     page: safePage,
     limit: safeLimit,
@@ -101,24 +93,24 @@ const getPaginatedProfiles = async ({ query, filter, basePath }) => {
     total_pages: totalPages,
     links: {
       self: buildPageLink(basePath, query, safePage, safeLimit),
-      next:
-        safePage * safeLimit < total
-          ? buildPageLink(basePath, query, safePage + 1, safeLimit)
-          : null,
-      prev:
-        safePage > 1
-          ? buildPageLink(basePath, query, safePage - 1, safeLimit)
-          : null
+      next: safePage * safeLimit < total ? buildPageLink(basePath, query, safePage + 1, safeLimit) : null,
+      prev: safePage > 1 ? buildPageLink(basePath, query, safePage - 1, safeLimit) : null
     },
     data: data.map(formatProfile)
   };
+
+  // Store in cache
+  await setCache(cacheKey, result, CACHE_TTL);
+
+  return result;
 };
 
 export const listProfiles = async (query) => {
   return getPaginatedProfiles({
     query,
     filter: buildFilter(query),
-    basePath: "/api/profiles"
+    basePath: "/api/profiles",
+    cachePrefix: "profiles:list"
   });
 };
 
@@ -128,16 +120,15 @@ export const searchProfilesByQuery = async (query) => {
     error.status = 400;
     throw error;
   }
-
   return getPaginatedProfiles({
     query,
     filter: buildSearchFilter(query.q),
-    basePath: "/api/profiles/search"
+    basePath: "/api/profiles/search",
+    cachePrefix: "profiles:search"
   });
 };
 
 export const createProfileRecord = async ({ name }) => {
-  // Profile creation currently generates the analytics fields automatically.
   if (!name) {
     const error = new Error("Name is required");
     error.status = 400;
@@ -156,19 +147,20 @@ export const createProfileRecord = async ({ name }) => {
     country_probability: 0.9
   });
 
+  // Invalidate list and search caches on write
+  await invalidateCache("profiles:list:*");
+  await invalidateCache("profiles:search:*");
+
   return formatProfile(profile);
 };
 
 export const findProfileById = async (id) => {
-  // Support both the custom UUID field and MongoDB's _id.
   const profile = await Profile.findOne({ id }) || await Profile.findById(id);
-
   if (!profile) {
     const error = new Error("Profile not found");
     error.status = 404;
     throw error;
   }
-
   return profile;
 };
 
@@ -180,18 +172,18 @@ export const getProfileById = async (id) => {
 export const deleteProfileById = async (id) => {
   const profile = await findProfileById(id);
   await profile.deleteOne();
+  // Invalidate caches on delete
+  await invalidateCache("profiles:list:*");
+  await invalidateCache("profiles:search:*");
 };
 
 export const exportProfilesAsCsv = async (query) => {
-  // Export uses the same filter/sort logic as listing, then formats rows as CSV.
   const { gender, age_group, country, country_id, min_age, max_age, sort_by, order, format = "csv" } = query;
-
   if (format !== "csv") {
     const error = new Error("Only csv export is supported");
     error.status = 400;
     throw error;
   }
-
   const filter = buildFilter({ gender, age_group, country, country_id, min_age, max_age });
   const sort = buildSort(sort_by, order);
   const profiles = await Profile.find(filter).sort(sort);
@@ -213,6 +205,5 @@ export const exportProfilesAsCsv = async (query) => {
       .map((value) => (value.includes(",") || value.includes("\n") ? `"${value}"` : value))
       .join(",")
   );
-
   return [csvHeader, ...csvRows].join("\n");
 };
