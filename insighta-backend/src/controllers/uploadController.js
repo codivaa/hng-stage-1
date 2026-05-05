@@ -4,7 +4,7 @@ import Profile from "../models/Profile.js";
 import { invalidateCache } from "../utils/cache.js";
 
 const VALID_GENDERS = ["male", "female"];
-const CHUNK_SIZE = 500;
+const CHUNK_SIZE = 1000;
 
 const validateRow = (row) => {
   if (!row.name || !row.name.trim()) return "missing_fields";
